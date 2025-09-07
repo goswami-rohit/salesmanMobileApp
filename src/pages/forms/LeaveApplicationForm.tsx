@@ -1,22 +1,77 @@
-// src/pages/forms/LeaveApplicationForm.tsx
 import React from "react";
-import { SafeAreaView, View, StyleSheet } from "react-native";
-import { Text, TextInput, Button } from "react-native-paper";
+import { ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, TextInput, Button, useTheme } from "react-native-paper";
+import AppHeader from "../../components/AppHeader"; // Make sure path is correct
 
 export default function LeaveApplicationForm() {
+  const theme = useTheme();
+
+  // Define custom theme for the text inputs for better dark mode appearance
+  const textInputTheme = {
+    colors: {
+      primary: theme.colors.primary,
+      text: '#e5e7eb', // Input text color
+      placeholder: '#9ca3af', // Placeholder color
+      background: '#1e293b', // Input background color
+      outline: '#475569', // Border color
+    },
+  };
+
+  // Placeholder function for opening a date picker
+  const showDatePicker = (field: string) => {
+    console.log(`Open date picker for ${field}`);
+    // In a real app, you would integrate a date picker library here
+  };
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        <Text variant="titleLarge" style={styles.title}>Leave Application</Text>
+    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+      <AppHeader title="Leave Application" />
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text variant="headlineSmall" style={styles.title}>Request Time Off</Text>
+        <Text variant="bodyMedium" style={styles.subtitle}>
+          Please fill in the dates and reason for your leave request.
+        </Text>
 
-        <TextInput label="From Date" mode="outlined" style={styles.input} />
-        <TextInput label="To Date" mode="outlined" style={styles.input} />
-        <TextInput label="Reason" mode="outlined" style={styles.input} multiline />
+        <TouchableOpacity onPress={() => showDatePicker('From Date')}>
+          <TextInput
+            label="From Date"
+            mode="outlined"
+            style={styles.input}
+            theme={textInputTheme}
+            editable={false} // Make it not directly editable
+            right={<TextInput.Icon icon="calendar" />}
+          />
+        </TouchableOpacity>
 
-        <Button mode="contained" onPress={() => {}} style={styles.button} buttonColor="#1d4ed8">
-          Apply Leave
+        <TouchableOpacity onPress={() => showDatePicker('To Date')}>
+          <TextInput
+            label="To Date"
+            mode="outlined"
+            style={styles.input}
+            theme={textInputTheme}
+            editable={false}
+            right={<TextInput.Icon icon="calendar" />}
+          />
+        </TouchableOpacity>
+
+        <TextInput
+          label="Reason for Leave"
+          mode="outlined"
+          style={styles.input}
+          multiline
+          numberOfLines={4}
+          theme={textInputTheme}
+        />
+
+        <Button
+          mode="contained"
+          onPress={() => console.log('Apply Leave')}
+          style={styles.button}
+        >
+          Apply for Leave
         </Button>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -24,7 +79,8 @@ export default function LeaveApplicationForm() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#0f172a" },
   container: { padding: 16 },
-  title: { color: "#fff", marginBottom: 12 },
-  input: { marginBottom: 12, backgroundColor: "#374151" },
-  button: { marginTop: 6 }
+  title: { color: "#e5e7eb", marginBottom: 4, fontWeight: 'bold' },
+  subtitle: { color: '#9ca3af', marginBottom: 24 },
+  input: { marginBottom: 16 },
+  button: { marginTop: 8, paddingVertical: 4 }
 });

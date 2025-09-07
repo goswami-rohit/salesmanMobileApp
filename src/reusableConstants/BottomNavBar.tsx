@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from 'react-native-paper';
 
 import HomePage from '../pages/HomePage';
 import JourneyPage from '../pages/JourneyTrackerPage';
@@ -11,34 +12,56 @@ import ProfilePage from '../pages/ProfilePage';
 const Tab = createBottomTabNavigator();
 
 export default function BottomNavBar() {
+  const theme = useTheme();
+
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#1d4ed8', // blue-700
-        tabBarInactiveTintColor: '#9CA3AF', // gray-400-ish
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
-          backgroundColor: '#0f172a', // dark background for the bar
-          borderTopWidth: 0,
-          height: Platform.OS === 'android' ? 90 : 64,
-          paddingBottom: Platform.OS === 'android' ? 20 : 8,
+          backgroundColor: '#1e293b',
+          borderTopColor: '#334155',
+          borderTopWidth: 1,
+          height: Platform.OS === 'android' ? 65 : 90,
+          paddingTop: Platform.OS === 'android' ? 5 : 10,
+          paddingBottom: Platform.OS === 'android' ? 5 : 30,
         },
-        tabBarIcon: ({ color, size }) => {
-          let iconName = 'help-circle-outline';
-          if (route.name === 'Home') iconName = 'home';
-          else if (route.name === 'Journey') iconName = 'map-marker-path';
-          else if (route.name === 'AIChat') iconName = 'robot';
-          else if (route.name === 'Profile') iconName = 'account-circle';
-
-          // MaterialCommunityIcons sizes look good around 22-26
-          return <MaterialCommunityIcons name={iconName as any} size={size ?? 24} color={color} />;
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
         },
-      })}
+      }}
     >
-      <Tab.Screen name="Home" component={HomePage} />
-      <Tab.Screen name="Journey" component={JourneyPage} />
-      <Tab.Screen name="AIChat" component={AIChatPage} options={{ title: 'AI Chat' }} />
-      <Tab.Screen name="Profile" component={ProfilePage} />
+      <Tab.Screen
+        name="Home"
+        component={HomePage}
+        options={{
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="home-variant" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Journey"
+        component={JourneyPage}
+        options={{
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="map-marker-path" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="AI Chat"
+        component={AIChatPage}
+        options={{
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="robot-happy" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfilePage}
+        options={{
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="account-circle" size={size} color={color} />,
+        }}
+      />
     </Tab.Navigator>
   );
 }
