@@ -1,8 +1,8 @@
-// dailyTasks.ts - Daily Tasks GET endpoints using createAutoCRUD pattern
+// competitionReports.ts - Competition Reports GET endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dailyTasks, insertDailyTaskSchema } from '../../db/schema';
+import { competitionReports, insertCompetitionReportSchema } from '../../db/schema';
 import { eq, and, desc, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -19,11 +19,11 @@ function createAutoCRUD(app: Express, config: {
   // GET ALL - with optional filtering and date range
   app.get(`/api/${endpoint}`, async (req: Request, res: Response) => {
     try {
-      const { startDate, endDate, limit = '50', status, userId, assignedByUserId, visitType, relatedDealerId, pjpId, ...filters } = req.query;
+      const { startDate, endDate, limit = '50', userId, brandName, schemesYesNo, ...filters } = req.query;
 
       let whereCondition: any = undefined;
 
-      // Date range filtering using taskDate
+      // Date range filtering using reportDate
       if (startDate && endDate && dateField && table[dateField]) {
         whereCondition = and(
           gte(table[dateField], startDate as string),
@@ -31,54 +31,39 @@ function createAutoCRUD(app: Express, config: {
         );
       }
 
-      // Filter by status
-      if (status) {
-        whereCondition = whereCondition 
-          ? and(whereCondition, eq(table.status, status as string))
-          : eq(table.status, status as string);
-      }
-
-      // Filter by userId (assigned to)
+      // Filter by userId
       if (userId) {
         whereCondition = whereCondition 
           ? and(whereCondition, eq(table.userId, parseInt(userId as string)))
           : eq(table.userId, parseInt(userId as string));
       }
 
-      // Filter by assignedByUserId (created by)
-      if (assignedByUserId) {
+      // Filter by brandName
+      if (brandName) {
         whereCondition = whereCondition 
-          ? and(whereCondition, eq(table.assignedByUserId, parseInt(assignedByUserId as string)))
-          : eq(table.assignedByUserId, parseInt(assignedByUserId as string));
+          ? and(whereCondition, eq(table.brandName, brandName as string))
+          : eq(table.brandName, brandName as string);
       }
 
-      // Filter by visitType
-      if (visitType) {
+      // Filter by schemesYesNo
+      if (schemesYesNo) {
         whereCondition = whereCondition 
-          ? and(whereCondition, eq(table.visitType, visitType as string))
-          : eq(table.visitType, visitType as string);
-      }
-
-      // Filter by relatedDealerId
-      if (relatedDealerId) {
-        whereCondition = whereCondition 
-          ? and(whereCondition, eq(table.relatedDealerId, relatedDealerId as string))
-          : eq(table.relatedDealerId, relatedDealerId as string);
-      }
-
-      // Filter by pjpId
-      if (pjpId) {
-        whereCondition = whereCondition 
-          ? and(whereCondition, eq(table.pjpId, pjpId as string))
-          : eq(table.pjpId, pjpId as string);
+          ? and(whereCondition, eq(table.schemesYesNo, schemesYesNo as string))
+          : eq(table.schemesYesNo, schemesYesNo as string);
       }
 
       // Additional filters
       Object.entries(filters).forEach(([key, value]) => {
         if (value && table[key]) {
-          whereCondition = whereCondition
-            ? and(whereCondition, eq(table[key], value))
-            : eq(table[key], value);
+          if (key === 'userId') {
+            whereCondition = whereCondition
+              ? and(whereCondition, eq(table[key], parseInt(value as string)))
+              : eq(table[key], parseInt(value as string));
+          } else {
+            whereCondition = whereCondition
+              ? and(whereCondition, eq(table[key], value))
+              : eq(table[key], value);
+          }
         }
       });
 
@@ -104,11 +89,11 @@ function createAutoCRUD(app: Express, config: {
     }
   });
 
-  // GET BY User ID (assigned to user)
+  // GET BY User ID
   app.get(`/api/${endpoint}/user/:userId`, async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
-      const { startDate, endDate, limit = '50', status, visitType } = req.query;
+      const { startDate, endDate, limit = '50', brandName } = req.query;
 
       let whereCondition = eq(table.userId, parseInt(userId));
 
@@ -121,12 +106,8 @@ function createAutoCRUD(app: Express, config: {
         );
       }
 
-      // Additional filters
-      if (status) {
-        whereCondition = and(whereCondition, eq(table.status, status as string));
-      }
-      if (visitType) {
-        whereCondition = and(whereCondition, eq(table.visitType, visitType as string));
+      if (brandName) {
+        whereCondition = and(whereCondition, eq(table.brandName, brandName as string));
       }
 
       const orderField = table[dateField] || table.createdAt;
@@ -170,13 +151,13 @@ function createAutoCRUD(app: Express, config: {
     }
   });
 
-  // GET BY Assigned By User ID (created by user)
-  app.get(`/api/${endpoint}/assigned-by/:assignedByUserId`, async (req: Request, res: Response) => {
+  // GET BY Brand Name
+  app.get(`/api/${endpoint}/brand/:brandName`, async (req: Request, res: Response) => {
     try {
-      const { assignedByUserId } = req.params;
-      const { startDate, endDate, limit = '50', status, userId } = req.query;
+      const { brandName } = req.params;
+      const { startDate, endDate, limit = '50', userId } = req.query;
 
-      let whereCondition = eq(table.assignedByUserId, parseInt(assignedByUserId));
+      let whereCondition = eq(table.brandName, brandName);
 
       // Date range filtering
       if (startDate && endDate && dateField && table[dateField]) {
@@ -187,10 +168,6 @@ function createAutoCRUD(app: Express, config: {
         );
       }
 
-      // Additional filters
-      if (status) {
-        whereCondition = and(whereCondition, eq(table.status, status as string));
-      }
       if (userId) {
         whereCondition = and(whereCondition, eq(table.userId, parseInt(userId as string)));
       }
@@ -203,49 +180,7 @@ function createAutoCRUD(app: Express, config: {
 
       res.json({ success: true, data: records });
     } catch (error) {
-      console.error(`Get ${tableName}s by Assigner error:`, error);
-      res.status(500).json({
-        success: false,
-        error: `Failed to fetch ${tableName}s`,
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // GET BY Status
-  app.get(`/api/${endpoint}/status/:status`, async (req: Request, res: Response) => {
-    try {
-      const { status } = req.params;
-      const { startDate, endDate, limit = '50', userId, assignedByUserId } = req.query;
-
-      let whereCondition = eq(table.status, status);
-
-      // Date range filtering
-      if (startDate && endDate && dateField && table[dateField]) {
-        whereCondition = and(
-          whereCondition,
-          gte(table[dateField], startDate as string),
-          lte(table[dateField], endDate as string)
-        );
-      }
-
-      // Additional filters
-      if (userId) {
-        whereCondition = and(whereCondition, eq(table.userId, parseInt(userId as string)));
-      }
-      if (assignedByUserId) {
-        whereCondition = and(whereCondition, eq(table.assignedByUserId, parseInt(assignedByUserId as string)));
-      }
-
-      const orderField = table[dateField] || table.createdAt;
-      const records = await db.select().from(table)
-        .where(whereCondition)
-        .orderBy(desc(orderField))
-        .limit(parseInt(limit as string));
-
-      res.json({ success: true, data: records });
-    } catch (error) {
-      console.error(`Get ${tableName}s by Status error:`, error);
+      console.error(`Get ${tableName}s by Brand error:`, error);
       res.status(500).json({
         success: false,
         error: `Failed to fetch ${tableName}s`,
@@ -257,19 +192,18 @@ function createAutoCRUD(app: Express, config: {
 }
 
 // Function call in the same file
-export default function setupDailyTasksRoutes(app: Express) {
-  // Daily Tasks - date field, auto taskDate and status
+export default function setupCompetitionReportsRoutes(app: Express) {
+  // Competition Reports - date field for filtering
   createAutoCRUD(app, {
-    endpoint: 'daily-tasks',
-    table: dailyTasks,
-    schema: insertDailyTaskSchema,
-    tableName: 'Daily Task',
-    dateField: 'taskDate',
+    endpoint: 'competition-reports',
+    table: competitionReports,
+    schema: insertCompetitionReportSchema,
+    tableName: 'Competition Report',
+    dateField: 'reportDate',
     autoFields: {
-      taskDate: () => new Date().toISOString().split('T')[0], // date type
-      status: () => 'Assigned' // default status
+      reportDate: () => new Date().toISOString().split('T')[0] // date type
     }
   });
   
-  console.log('✅ Daily Tasks GET endpoints setup complete');
+  console.log('✅ Competition Reports GET endpoints setup complete');
 }
