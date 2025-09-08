@@ -5,7 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider as PaperProvider } from "react-native-paper";
 import { NavigationContainer } from "@react-navigation/native";
-import AppDrawer from "./components/Drawer";
+import AppDrawer from "./components/SideDrawer";
 import theme from "./theme/paperTheme";
 
 export default function App() {

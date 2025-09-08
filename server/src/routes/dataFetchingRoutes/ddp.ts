@@ -1,4 +1,5 @@
-// ddp.ts - Dealer Development Process GET endpoints using createAutoCRUD pattern
+//  server/src/routes/dataFetchingRoutes/ddp.ts 
+// Dealer Development Process GET endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';

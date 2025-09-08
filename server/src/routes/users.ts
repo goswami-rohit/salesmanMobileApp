@@ -1,4 +1,5 @@
-// users.ts - Users GET endpoints using createAutoCRUD pattern
+// server/src/routes/users.ts 
+// Users GET endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../db/db';

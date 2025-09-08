@@ -1,30 +1,32 @@
+// src/pages/forms/AttendanceOutForm.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, Button, ActivityIndicator, useTheme } from 'react-native-paper';
-// Use the new CameraView component from expo-camera
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppHeader from '../../components/AppHeader';
+import { createAttendanceOut } from '../../backendConnections/apiServices'; // Import the service function
 
 // Define the navigation props type for type safety
 type RootStackParamList = {
   Home: { checkedIn: boolean };
-  // Add other screen names here as needed
 };
 type NavigationProps = NativeStackNavigationProp<RootStackParamList>;
+type UserLite = { id: number };
 
 export default function AttendanceOutForm() {
   const navigation = useNavigation<NavigationProps>();
   const theme = useTheme();
-  // Use the new CameraView type for the ref
   const cameraRef = useRef<CameraView>(null);
+
+  // In a real app, user would come from a global state/context
+  const [currentUser] = useState<UserLite>({ id: 1 });
 
   const [step, setStep] = useState<'camera' | 'location' | 'loading'>('loading');
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [locationPermission, requestLocationPermission] = Location.useForegroundPermissions();
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -33,8 +35,8 @@ export default function AttendanceOutForm() {
   useEffect(() => {
     const requestPermissions = async () => {
       if (!cameraPermission?.granted) {
-        const status = await requestCameraPermission();
-        if (!status.granted) {
+        const { status } = await requestCameraPermission();
+        if (status !== 'granted') {
           Alert.alert('Permission required', 'You need to grant camera access to check out.');
           navigation.goBack();
           return;
@@ -52,20 +54,22 @@ export default function AttendanceOutForm() {
       if (photo) {
         setPhotoUri(photo.uri);
         await fetchLocation();
+      } else {
+        Alert.alert('Error', 'Could not capture photo. Please try again.');
+        setStep('camera');
       }
     }
   };
 
   const fetchLocation = async () => {
-    let locationStatus = await Location.getForegroundPermissionsAsync();
-    if (!locationStatus.granted) {
-      locationStatus = await requestLocationPermission();
-    }
-
-    if (!locationStatus.granted) {
-      Alert.alert('Permission required', 'You need to grant location access to check out.');
-      setStep('camera');
-      return;
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      const response = await Location.requestForegroundPermissionsAsync();
+      if (response.status !== 'granted') {
+        Alert.alert('Permission required', 'You need to grant location access to check out.');
+        setStep('camera');
+        return;
+      }
     }
 
     const currentLocation = await Location.getCurrentPositionAsync({});
@@ -73,19 +77,38 @@ export default function AttendanceOutForm() {
     setStep('location');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!photoUri || !location) {
+        return Alert.alert("Error", "Photo or location data is missing.");
+    }
     setIsSubmitting(true);
-    console.log({
-      photoUri,
-      latitude: location?.coords.latitude,
-      longitude: location?.coords.longitude,
-      timestamp: location?.timestamp,
-    });
-    setTimeout(() => {
-      setIsSubmitting(false);
+
+    /*
+    // --- IMAGE UPLOAD LOGIC (COMMENTED OUT) ---
+    // const outTimeImageUrl = await uploadImage(photoUri, 'attendance-out');
+    */
+
+    const attendancePayload = {
+      // For an update, the backend needs to know which user's record to update.
+      userId: currentUser.id,
+      outTimeTimestamp: new Date(location.timestamp).toISOString(),
+      outTimeImageCaptured: true,
+      outTimeImageUrl: photoUri, // Replace with outTimeImageUrl from upload service
+      outTimeLatitude: location.coords.latitude,
+      outTimeLongitude: location.coords.longitude,
+      outTimeAccuracy: location.coords.accuracy,
+    };
+
+    // Call the central API service function
+    const result = await createAttendanceOut(attendancePayload) as { success: boolean };
+    setIsSubmitting(false);
+
+    if (result.success) {
       Alert.alert('Success', 'You have been successfully checked out.');
       navigation.navigate('Home', { checkedIn: false });
-    }, 1500);
+    } else {
+      Alert.alert('Error', 'Failed to check out.');
+    }
   };
 
   const renderContent = () => {

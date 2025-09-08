@@ -1,3 +1,4 @@
+// src/components/AppHeader.tsx 
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { Appbar, useTheme } from 'react-native-paper';

@@ -1,4 +1,5 @@
-// auth.ts - Authentication endpoints compatible with your existing system
+// server/src/routes/auth.ts 
+// Authentication endpoints compatible with your existing system
 
 import { Request, Response, Express } from 'express';
 import { db } from '../db/db';

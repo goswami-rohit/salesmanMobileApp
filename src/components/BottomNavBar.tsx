@@ -1,3 +1,4 @@
+// src/components/BottomNavBar.tsx 
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform } from 'react-native';
@@ -6,7 +7,7 @@ import { useTheme } from 'react-native-paper';
 
 import HomePage from '../pages/HomePage';
 import JourneyPage from '../pages/JourneyTrackerPage';
-import AIChatPage from '../pages/AIChatInterface';
+import AIChatPage from '../pages/AIChatInterfacePage';
 import ProfilePage from '../pages/ProfilePage';
 
 const Tab = createBottomTabNavigator();

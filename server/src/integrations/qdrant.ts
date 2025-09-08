@@ -1,3 +1,4 @@
+// server/src/integrations/qdrant.ts
 import { QdrantClient } from "@qdrant/js-client-rest";
 
 export const qdrantClient = new QdrantClient({

@@ -1,21 +1,23 @@
+// src/components/SideDrawer.tsx 
 import React from "react";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Platform } from "react-native";
 
-import BottomNavBar from "../reusableConstants/BottomNavBar";
-import SideNavBar from "../reusableConstants/SideNavBar";
+import BottomNavBar from "./BottomNavBar";
+import SideNavBar from "./SideNavBar";
 
 // Import ALL form screens
-import AddDealerForm from "../pages/forms/AddDealerForm";
-import CompetitorsInfoForm from "../pages/forms/CompetitorsInfoForm";
 import DVRForm from "../pages/forms/DVRForm";
-import LeaveApplicationForm from "../pages/forms/LeaveApplicationForm";
-import PJPForm from "../pages/forms/PJPForm";
-import SalesOrderForm from "../pages/forms/SalesOrderForm";
 import TVRForm from "../pages/forms/TVRForm";
 import AttendanceInForm from "../pages/forms/AttendanceInForm";
 import AttendanceOutForm from "../pages/forms/AttendanceOutForm";
+import LeaveApplicationForm from "../pages/forms/LeaveApplicationForm";
+import PJPForm from "../pages/forms/AddPJPForm";
+import SalesOrderForm from "../pages/forms/SalesOrderForm";
+import AddDealerForm from "../pages/forms/AddDealerForm";
+import CompetitionReportForm from "../pages/forms/CompetitionReportForm";
+
 
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
@@ -29,15 +31,15 @@ function RootStack() {
             <Stack.Screen name="MainTabs" component={BottomNavBar} />
 
             {/* All other form screens are siblings in the same stack */}
-            <Stack.Screen name="DVRForm" component={DVRForm} />
-            <Stack.Screen name="TVRForm" component={TVRForm} />
-            <Stack.Screen name="SalesOrderForm" component={SalesOrderForm} />
-            <Stack.Screen name="AddDealerForm" component={AddDealerForm} />
-            <Stack.Screen name="CompetitorsInfoForm" component={CompetitorsInfoForm} />
-            <Stack.Screen name="LeaveApplicationForm" component={LeaveApplicationForm} />
-            <Stack.Screen name="PJPForm" component={PJPForm} />
             <Stack.Screen name="AttendanceInForm" component={AttendanceInForm} />
             <Stack.Screen name="AttendanceOutForm" component={AttendanceOutForm} />
+            <Stack.Screen name="PJPForm" component={PJPForm} />
+            <Stack.Screen name="DVRForm" component={DVRForm} />
+            <Stack.Screen name="TVRForm" component={TVRForm} />
+            <Stack.Screen name="AddDealerForm" component={AddDealerForm} />
+            <Stack.Screen name="SalesOrderForm" component={SalesOrderForm} />
+            <Stack.Screen name="CompetitionReportForm" component={CompetitionReportForm} />
+            <Stack.Screen name="LeaveApplicationForm" component={LeaveApplicationForm} />
         </Stack.Navigator>
     );
 }

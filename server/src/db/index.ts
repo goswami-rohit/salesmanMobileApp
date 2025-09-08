@@ -17,7 +17,7 @@ import setupDdpRoutes from '../routes/dataFetchingRoutes/ddp';
 import setupRatingsRoutes from '../routes/dataFetchingRoutes/ratings';
 import setupSalesmanLeaveApplicationsRoutes from '../routes/dataFetchingRoutes/salesmanLeaveApplications';
 import setupSalesReportRoutes from '../routes/dataFetchingRoutes/salesReports';
-import setupSalesOrdersRoutes from '../routes/dataFetchingRoutes/salesorder';
+import setupSalesOrdersRoutes from '../routes/dataFetchingRoutes/salesOrder';
 import setupDailyVisitReportsRoutes from '../routes/dataFetchingRoutes/dvr';
 import setupSalesmanAttendanceRoutes from '../routes/dataFetchingRoutes/salesmanAttendance';
 import setupTechnicalVisitReportsRoutes from '../routes/dataFetchingRoutes/tvr';

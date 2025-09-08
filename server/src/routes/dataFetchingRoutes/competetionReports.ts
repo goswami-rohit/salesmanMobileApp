@@ -1,4 +1,5 @@
-// competitionReports.ts - Competition Reports GET endpoints using createAutoCRUD pattern
+//  server/src/routes/dataFetchingRoutes/competitionReports.ts 
+// Competition Reports GET endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';

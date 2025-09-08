@@ -1,4 +1,5 @@
-// salesmanLeaveApplications.ts - Leave Applications GET endpoints using createAutoCRUD pattern
+//  server/src/routes/dataFetchingRoutes/salesmanLeaveAttendance.ts 
+// Leave Applications GET endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';

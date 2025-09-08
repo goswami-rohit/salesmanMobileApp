@@ -1,4 +1,4 @@
-// seed.ts
+// server/src/db/seed.ts
 // Purge-only seed compatible with current schema.ts and storage.ts.
 // Deletes child tables -> parent tables in FK-safe order.
 // No data is inserted. This is for dev/staging reset only.

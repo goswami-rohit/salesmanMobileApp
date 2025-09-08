@@ -1,4 +1,4 @@
-// schema.ts
+// server/src/db/schema.ts
 import {
   pgTable, serial, integer, varchar, text, boolean, timestamp, date, numeric, uuid,
   uniqueIndex, index

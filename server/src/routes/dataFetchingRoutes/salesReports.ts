@@ -1,4 +1,5 @@
-// salesReport.ts - Sales Report GET endpoints using createAutoCRUD pattern
+//  server/src/routes/dataFetchingRoutes/salesReports.ts 
+// Sales Report GET endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
