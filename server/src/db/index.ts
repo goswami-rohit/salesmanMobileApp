@@ -14,6 +14,7 @@ import setupDailyTasksRoutes from '../routes/dataFetchingRoutes/dailyTasks';
 import setupDealersRoutes from '../routes/dataFetchingRoutes/dealers';
 import setupPJPRoutes from '../routes/dataFetchingRoutes/pjp';
 import setupDdpRoutes from '../routes/dataFetchingRoutes/ddp';
+import setupDealerRoutes from '../routes/dataFetchingRoutes/dealerReportandScores';
 import setupRatingsRoutes from '../routes/dataFetchingRoutes/ratings';
 import setupSalesmanLeaveApplicationsRoutes from '../routes/dataFetchingRoutes/salesmanLeaveApplications';
 import setupSalesReportRoutes from '../routes/dataFetchingRoutes/salesReports';
