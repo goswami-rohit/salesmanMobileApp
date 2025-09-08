@@ -379,7 +379,7 @@ export const dealerBrandMapping = pgTable("dealer_brand_mapping", {
 }, (t) => [
   uniqueIndex("dealer_brand_mapping_dealer_id_brand_id_unique").on(t.dealerId, t.brandId),
 ]);
-
+//-------------------------- salesOrder---------------------------------------
 export const salesOrders = pgTable("sales_orders", {
   id: varchar("id", { length: 255 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   salesmanId: integer("salesman_id").references(() => users.id, { onDelete: "set null" }),
