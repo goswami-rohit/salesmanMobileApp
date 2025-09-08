@@ -1,9 +1,9 @@
 // src/pages/forms/TVRForm.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Image, Alert, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, ActivityIndicator, TextInput, useTheme, Menu, Modal, Portal, Checkbox } from 'react-native-paper';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Text, Button, ActivityIndicator, TextInput, useTheme, Menu, Modal, Portal, Checkbox, Avatar } from 'react-native-paper';
+import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import AppHeader from '../../components/AppHeader';
 import { BRANDS, INFLUENCERS, UNITS, QUALITY_COMPLAINT, PROMO_ACTIVITY, CHANNEL_PARTNER_VISIT } from '../../components/ReusableConstants';
@@ -15,14 +15,12 @@ type UserLite = { id: number };
 export default function TVRForm() {
   const navigation = useNavigation();
   const theme = useTheme();
-  const cameraRef = useRef<CameraView>(null);
 
   // In a real app, user would come from a global state/context
   const [currentUser] = useState<UserLite>({ id: 1 });
 
   // --- State Management ---
   const [step, setStep] = useState<Step>('loading');
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   // Photos and Timestamps
   const [checkInPhotoUri, setCheckInPhotoUri] = useState<string | null>(null);
@@ -58,7 +56,8 @@ export default function TVRForm() {
   // --- Permission & Core Logic ---
   useEffect(() => {
     (async () => {
-      const { status } = await requestCameraPermission();
+      // Request camera permission via ImagePicker since we open native camera intent
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Camera access is required.');
         navigation.goBack();
@@ -69,18 +68,62 @@ export default function TVRForm() {
   }, []);
 
   const handleCapture = async () => {
-    if (cameraRef.current) {
+    if ((handleCapture as any).inProgress) {
+      console.warn('[TVR] capture already in progress');
+      return;
+    }
+    (handleCapture as any).inProgress = true;
+
+    const currentStep = step;
+    try {
       setStep('loading');
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
-      if (step === 'checkin') {
-        setCheckInPhotoUri(photo?.uri || null);
+
+      // Defensive permission check
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert('Permission required', 'Camera permission is required to take photos.');
+        setStep(currentStep);
+        (handleCapture as any).inProgress = false;
+        return;
+      }
+
+      // small stabilization delay (helps some devices)
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Launch native camera via ImagePicker
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.7,
+        allowsEditing: false,
+        exif: false,
+      });
+
+      if (!result || result.canceled || !result.assets || result.assets.length === 0) {
+        // user cancelled or no photo returned
+        setStep(currentStep);
+        (handleCapture as any).inProgress = false;
+        return;
+      }
+
+      const pickedUri = result.assets[0].uri;
+
+      if (currentStep === 'checkin') {
+        setCheckInPhotoUri(pickedUri);
         setCheckInTime(new Date().toISOString());
         setStep('form');
-      } else if (step === 'checkout') {
-        setCheckOutPhotoUri(photo?.uri || null);
+      } else if (currentStep === 'checkout') {
+        setCheckOutPhotoUri(pickedUri);
         setCheckOutTime(new Date().toISOString());
-        await handleSubmit(photo?.uri);
+        await handleSubmit(pickedUri);
+      } else {
+        setStep('checkin');
       }
+
+      (handleCapture as any).inProgress = false;
+    } catch (err) {
+      console.error('[TVR] handleCapture error', err);
+      Alert.alert('Error', 'Could not capture photo. Please try again.');
+      setStep(currentStep === 'loading' ? 'checkin' : currentStep);
+      (handleCapture as any).inProgress = false;
     }
   };
 
@@ -102,26 +145,31 @@ export default function TVRForm() {
   };
 
   const handleSubmit = async (finalPhotoUri?: string) => {
-    setIsSubmitting(true);
-    const tvrPayload = {
-      userId: currentUser.id,
-      reportDate, visitType, siteNameConcernedPerson, phoneNo, emailId, clientsRemarks, salespersonRemarks, siteVisitStage, conversionFromBrand, 
-      conversionQuantityValue: Number(conversionQuantityValue) || null,
-      conversionQuantityUnit, associatedPartyName, serviceType, qualityComplaint, promotionalActivity, channelPartnerVisit, siteVisitBrandInUse, influencerType,
-      checkInTime, checkOutTime, 
-      inTimeImageUrl: checkInPhotoUri, // Replace with uploaded URL in real app
-      outTimeImageUrl: finalPhotoUri // Replace with uploaded URL in real app
-    };
-
-    // Call the central API service function
-    const result = await createTvr(tvrPayload) as { success: boolean };
-    setIsSubmitting(false);
-
-    if (result.success) {
-      Alert.alert('Success', 'TVR has been submitted successfully.');
-      navigation.goBack();
-    } else {
-      Alert.alert('Error', 'Failed to submit TVR.');
+    try {
+      setIsSubmitting(true);
+      const tvrPayload = {
+        userId: currentUser.id,
+        reportDate, visitType, siteNameConcernedPerson, phoneNo, emailId, clientsRemarks, salespersonRemarks, siteVisitStage, conversionFromBrand,
+        conversionQuantityValue: Number(conversionQuantityValue) || null,
+        conversionQuantityUnit, associatedPartyName, serviceType, qualityComplaint, promotionalActivity, channelPartnerVisit, siteVisitBrandInUse, influencerType,
+        checkInTime, checkOutTime,
+        inTimeImageUrl: checkInPhotoUri, // Replace with uploaded URL in real app
+        outTimeImageUrl: finalPhotoUri // Replace with uploaded URL in real app
+      };
+      const result = await createTvr(tvrPayload) as { success: boolean };
+      setIsSubmitting(false);
+      if (result.success) {
+        Alert.alert('Success', 'TVR has been submitted successfully.');
+        navigation.goBack();
+      } else {
+        Alert.alert('Error', 'Failed to submit TVR.');
+        setStep('checkout');
+      }
+    } catch (err) {
+      console.error('[TVR] submit error', err);
+      setIsSubmitting(false);
+      Alert.alert('Error', 'An unexpected error occurred while submitting TVR.');
+      setStep('checkout');
     }
   };
 
@@ -138,7 +186,14 @@ export default function TVRForm() {
       <Text variant="headlineSmall" style={styles.title}>{isCheckin ? 'Site Check-in' : 'Site Checkout'}</Text>
       <Text variant="bodyMedium" style={styles.subtitle}>Take a selfie to {isCheckin ? 'begin' : 'complete'} the technical visit.</Text>
       <View style={styles.cameraContainer}>
-        <CameraView ref={cameraRef} style={styles.camera} facing={'front'} />
+        { (isCheckin ? checkInPhotoUri : checkOutPhotoUri) ? (
+          <Image source={{ uri: isCheckin ? checkInPhotoUri! : checkOutPhotoUri! }} style={styles.camera} />
+        ) : (
+          <View style={styles.placeholder}>
+            <Avatar.Icon size={96} icon="camera" />
+            <Text style={{ color: '#9ca3af', marginTop: 8 }}>Tap Capture to open phone camera</Text>
+          </View>
+        )}
       </View>
       <Button mode="contained" icon={isCheckin ? 'camera' : 'camera-check'} onPress={handleCapture} style={styles.button} loading={isSubmitting} disabled={isSubmitting}>
         {isCheckin ? 'Capture & Continue' : 'Capture & Submit TVR'}
@@ -166,7 +221,7 @@ export default function TVRForm() {
       <ScrollView contentContainerStyle={styles.formContainer}>
         <Text variant="headlineSmall" style={styles.title}>Technical Visit Details</Text>
         {checkInPhotoUri && <Image source={{ uri: checkInPhotoUri }} style={styles.photoPreview} />}
-        
+
         {/* --- FORM FIELDS --- */}
         <TextInput label="Visit Type *" value={visitType} onChangeText={setVisitType} style={styles.input} theme={textInputTheme} />
         <TextInput label="Site Name / Concerned Person *" value={siteNameConcernedPerson} onChangeText={setSiteNameConcernedPerson} style={styles.input} theme={textInputTheme} />
@@ -176,12 +231,12 @@ export default function TVRForm() {
         <TextInput label="Salesperson Remarks *" multiline numberOfLines={3} value={salespersonRemarks} onChangeText={setSalespersonRemarks} style={styles.input} theme={textInputTheme} />
         <TouchableOpacity onPress={() => toggleModal('brands', true)}><TextInput label="Site Visit - Brand in Use *" editable={false} value={siteVisitBrandInUse.join(', ') || 'Select brands...'} style={styles.input} theme={textInputTheme} /></TouchableOpacity>
         <TextInput label="Site Visit - Stage *" value={siteVisitStage} onChangeText={setSiteVisitStage} style={styles.input} theme={textInputTheme} />
-        
+
         {/* Dropdown Menus */}
         <Menu visible={menus.brand} onDismiss={() => toggleMenu('brand', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('brand', true)}><TextInput label="Conversion From Brand *" editable={false} value={conversionFromBrand} style={styles.input} theme={textInputTheme} /></TouchableOpacity>}>{BRANDS.map(b => <Menu.Item key={b} onPress={() => { setConversionFromBrand(b); toggleMenu('brand', false); }} title={b} />)}</Menu>
-        <View style={{flexDirection: 'row', gap: 8}}>
-            <TextInput label="Conversion Qty *" keyboardType="numeric" value={conversionQuantityValue} onChangeText={setConversionQuantityValue} style={[styles.input, {flex: 1}]} theme={textInputTheme} />
-            <Menu visible={menus.unit} onDismiss={() => toggleMenu('unit', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('unit', true)} style={{flex: 1}}><TextInput label="Unit *" editable={false} value={conversionQuantityUnit} style={styles.input} theme={textInputTheme} /></TouchableOpacity>}>{UNITS.map(u => <Menu.Item key={u} onPress={() => { setConversionQuantityUnit(u); toggleMenu('unit', false); }} title={u} />)}</Menu>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TextInput label="Conversion Qty *" keyboardType="numeric" value={conversionQuantityValue} onChangeText={setConversionQuantityValue} style={[styles.input, { flex: 1 }]} theme={textInputTheme} />
+          <Menu visible={menus.unit} onDismiss={() => toggleMenu('unit', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('unit', true)} style={{ flex: 1 }}><TextInput label="Unit *" editable={false} value={conversionQuantityUnit} style={styles.input} theme={textInputTheme} /></TouchableOpacity>}>{UNITS.map(u => <Menu.Item key={u} onPress={() => { setConversionQuantityUnit(u); toggleMenu('unit', false); }} title={u} />)}</Menu>
         </View>
 
         <TextInput label="Associated Party Name *" value={associatedPartyName} onChangeText={setAssociatedPartyName} style={styles.input} theme={textInputTheme} />
@@ -223,8 +278,9 @@ const styles = StyleSheet.create({
   formContainer: { paddingTop: 16, paddingBottom: 32 },
   title: { color: "#e5e7eb", marginBottom: 4, fontWeight: 'bold', textAlign: 'center' },
   subtitle: { color: '#9ca3af', marginBottom: 24, textAlign: 'center' },
-  cameraContainer: { width: 300, height: 300, borderRadius: 150, overflow: 'hidden', marginBottom: 24, borderWidth: 2, borderColor: '#334155' },
-  camera: { flex: 1 },
+  cameraContainer: { width: 300, height: 300, borderRadius: 150, overflow: 'hidden', marginBottom: 24, borderWidth: 2, borderColor: '#334155', alignItems: 'center', justifyContent: 'center', backgroundColor: '#071024' },
+  placeholder: { alignItems: 'center', justifyContent: 'center' },
+  camera: { width: '100%', height: '100%' },
   photoPreview: { width: 100, height: 100, alignSelf: 'center', borderRadius: 50, marginBottom: 24, borderWidth: 2, borderColor: '#334155' },
   input: { marginBottom: 16 },
   button: { marginTop: 8, paddingVertical: 4, width: '100%' },
@@ -232,4 +288,3 @@ const styles = StyleSheet.create({
   modalTitle: { color: '#e5e7eb', marginBottom: 10 },
   checkboxLabel: { color: '#e5e7eb' }
 });
-

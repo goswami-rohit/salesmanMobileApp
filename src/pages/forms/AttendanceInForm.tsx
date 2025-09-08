@@ -4,6 +4,7 @@ import { View, StyleSheet, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, Button, ActivityIndicator, useTheme } from 'react-native-paper';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from "expo-image-picker";
 import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -21,7 +22,7 @@ export default function AttendanceInForm() {
   const navigation = useNavigation<NavigationProps>();
   const theme = useTheme();
   const cameraRef = useRef<CameraView>(null);
-  
+
   // In a real app, user would come from a global state/context
   const [currentUser] = useState<UserLite>({ id: 1 });
 
@@ -34,52 +35,103 @@ export default function AttendanceInForm() {
 
   useEffect(() => {
     const requestPermissions = async () => {
-      if (!cameraPermission?.granted) {
-          const { status } = await requestCameraPermission();
-          if (status !== 'granted') {
-            Alert.alert('Permission required', 'You need to grant camera access to check in.');
-            navigation.goBack();
-            return;
-          }
+      // Use ImagePicker permission since we open the native camera activity
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'You need to grant camera access to check in.');
+        navigation.goBack();
+        return;
       }
       setStep('camera');
     };
     requestPermissions();
-  }, [cameraPermission]);
+  }, []);
 
   const takePicture = async () => {
-    if (cameraRef.current) {
-      setStep('loading');
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
-      if (photo) {
-        setPhotoUri(photo.uri);
-        await fetchLocation();
-      } else {
-        Alert.alert('Error', 'Could not capture photo. Please try again.');
-        setStep('camera');
+    console.log("[AttendanceIn] takePicture (ImagePicker-first) called. step:", step);
+
+    // Prevent duplicate captures
+    if ((takePicture as any).inProgress) {
+      console.warn("[AttendanceIn] capture already in progress");
+      return;
+    }
+    (takePicture as any).inProgress = true;
+
+    try {
+      setStep("loading");
+
+      // 1) Request ImagePicker camera permission (handles runtime permission on Android)
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      console.log("[AttendanceIn] ImagePicker permission:", perm.status);
+      if (perm.status !== "granted") {
+        Alert.alert("Permission required", "Camera permission is required to take photos.");
+        setStep("camera");
+        (takePicture as any).inProgress = false;
+        return;
       }
+
+      // 2) Launch ImagePicker camera UI (user-friendly fallback that works on most devices)
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.7,
+        allowsEditing: false,
+        exif: false,
+      });
+      //console.log("[AttendanceIn] ImagePicker result:", result);
+
+      // ImagePicker result shape: { canceled: boolean, assets?: [{ uri, ... }] }
+      if (!result || result.canceled || !result.assets || result.assets.length === 0) {
+        console.log("[AttendanceIn] no photo taken or cancelled");
+        setStep("camera");
+        (takePicture as any).inProgress = false;
+        return;
+      }
+
+      const pickedUri = result.assets[0].uri;
+      setPhotoUri(pickedUri);
+      //console.log("[AttendanceIn] pickedUri:", pickedUri);
+
+      // 3) proceed to location step (your existing fetchLocation handles it)
+      await fetchLocation();
+
+      (takePicture as any).inProgress = false;
+      return;
+    } catch (err) {
+      console.error("[AttendanceIn] ImagePicker primary capture error:", err);
+      // As a secondary fallback we could try expo-camera here, but skip for now to keep UX reliable
+      Alert.alert("Error", "Could not capture photo. Try again.");
+      setStep("camera");
+      (takePicture as any).inProgress = false;
+      return;
     }
   };
 
   const fetchLocation = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      const response = await Location.requestForegroundPermissionsAsync();
-      if (response.status !== 'granted') {
-        Alert.alert('Permission required', 'You need to grant location access to check in.');
-        setStep('camera'); // Go back to camera step
-        return;
+    try {
+      console.log('[AttendanceIn] requesting location permission');
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        // try again once (keeps behavior similar to your previous implementation)
+        const response = await Location.requestForegroundPermissionsAsync();
+        if (response.status !== 'granted') {
+          Alert.alert('Permission required', 'You need to grant location access to check in.');
+          setStep('camera');
+          return;
+        }
       }
-    }
 
-    const currentLocation = await Location.getCurrentPositionAsync({});
-    setLocation(currentLocation);
-    setStep('location');
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      setLocation(currentLocation);
+      setStep('location');
+    } catch (err) {
+      console.error('[AttendanceIn] fetchLocation error', err);
+      Alert.alert('Error', 'Unable to fetch location. Please try again.');
+      setStep('camera');
+    }
   };
 
   const handleSubmit = async () => {
     if (!photoUri || !location) {
-        return Alert.alert("Error", "Photo or location data is missing.");
+      return Alert.alert("Error", "Photo or location data is missing.");
     }
     setIsSubmitting(true);
 
@@ -127,13 +179,24 @@ export default function AttendanceInForm() {
           <Text variant="bodyMedium" style={styles.subtitle}>
             Please take a clear selfie to mark your attendance.
           </Text>
+
+          {/* SHOW PREVIEW IF A PHOTO WAS ALREADY TAKEN; OTHERWISE SHOW A PLACEHOLDER */}
           <View style={styles.cameraContainer}>
-            <CameraView
-              ref={cameraRef}
-              style={styles.camera}
-              facing={'front'}
-            />
+            {photoUri ? (
+              <Image source={{ uri: photoUri }} style={styles.camera} />
+            ) : (
+              // simple centered placeholder circle
+              <View style={{
+                flex: 1,
+                backgroundColor: '#071024',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Text style={{ color: '#9ca3af' }}>Tap Capture to open phone camera</Text>
+              </View>
+            )}
           </View>
+
           <Button mode="contained" icon="camera" onPress={takePicture} style={styles.button}>
             Capture & Continue
           </Button>

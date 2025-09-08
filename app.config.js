@@ -26,6 +26,7 @@ module.exports = ({ config }) => {
     },
     android: {
       package: "com.rohitgoswami.salesmanmobileapp", // REQUIRED: set your package name here
+      permissions: ["CAMERA", "ACCESS_FINE_LOCATION"]
     },
     ios: {
       bundleIdentifier: "com.rohitgoswami.salesmanmobileapp", // & REQUIRED set your package name here
