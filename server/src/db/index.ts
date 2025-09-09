@@ -14,7 +14,7 @@ import setupDailyTasksRoutes from '../routes/dataFetchingRoutes/dailyTasks';
 import setupDealersRoutes from '../routes/dataFetchingRoutes/dealers';
 import setupPJPRoutes from '../routes/dataFetchingRoutes/pjp';
 import setupDdpRoutes from '../routes/dataFetchingRoutes/ddp';
-import setupDealerRoutes from '../routes/dataFetchingRoutes/dealerReportandScores';
+import setupDealerReportsAndScoresRoutes from '../routes/dataFetchingRoutes/dealerReportandScores';
 import setupRatingsRoutes from '../routes/dataFetchingRoutes/ratings';
 import setupSalesmanLeaveApplicationsRoutes from '../routes/dataFetchingRoutes/salesmanLeaveApplications';
 import setupSalesReportRoutes from '../routes/dataFetchingRoutes/salesReports';
@@ -22,6 +22,40 @@ import setupSalesOrdersRoutes from '../routes/dataFetchingRoutes/salesOrder';
 import setupDailyVisitReportsRoutes from '../routes/dataFetchingRoutes/dvr';
 import setupSalesmanAttendanceRoutes from '../routes/dataFetchingRoutes/salesmanAttendance';
 import setupTechnicalVisitReportsRoutes from '../routes/dataFetchingRoutes/tvr';
+
+// --- Import DELETE route setups ---
+import setupDealersDeleteRoutes from '../routes/deleteRoutes/dealers';
+import setupPermanentJourneyPlansDeleteRoutes from '../routes/deleteRoutes/pjp';
+import setupTechnicalVisitReportsDeleteRoutes from '../routes/deleteRoutes/tvr';
+import setupDailyVisitReportsDeleteRoutes from '../routes/deleteRoutes/dvr';
+import setupDailyTasksDeleteRoutes from '../routes/deleteRoutes/dailytask';
+import setupSalesReportDeleteRoutes from '../routes/deleteRoutes/salesreport';
+import setupSalesmanLeaveApplicationsDeleteRoutes from '../routes/deleteRoutes/salesmanleave';
+import setupCompetitionReportsDeleteRoutes from '../routes/deleteRoutes/competetionreports';
+import setupBrandsDeleteRoutes from '../routes/deleteRoutes/brands';
+import setupRatingsDeleteRoutes from '../routes/deleteRoutes/ratings';
+import setupSalesOrdersDeleteRoutes from '../routes/deleteRoutes/salesOrder';
+import setupDealerReportsAndScoresDeleteRoutes from '../routes/deleteRoutes/dealerReportsAndScores';
+
+// --- Import POST route setups ---
+import setupTechnicalVisitReportsPostRoutes from '../routes/formSubmissionRoutes/tvr';
+import setupPermanentJourneyPlansPostRoutes from '../routes/formSubmissionRoutes/pjp';
+import setupDealersPostRoutes from '../routes/formSubmissionRoutes/addDealer';
+import setupSalesmanLeaveApplicationsPostRoutes from '../routes/formSubmissionRoutes/salesManleave';
+import setupClientReportsPostRoutes from '../routes/postRoutes/clientReports';
+import setupCompetitionReportsPostRoutes from '../routes/postRoutes/competitionReports';
+import setupDailyTasksPostRoutes from '../routes/postRoutes/dailyTasks';
+import setupDealerReportsAndScoresPostRoutes from '../routes/postRoutes/dealerReportsAndScores';
+import setupSalesReportPostRoutes from '../routes/postRoutes/salesReport';
+import setupCollectionReportsPostRoutes from '../routes/postRoutes/collectionReports';
+import setupDdpPostRoutes from '../routes/postRoutes/ddp';
+import setupRatingsPostRoutes from '../routes/postRoutes/ratings';
+import setupBrandsPostRoutes from '../routes/postRoutes/brands';
+import setupSalesOrdersPostRoutes from '../routes/postRoutes/salesOrders';
+import setupDealerBrandMappingPostRoutes from '../routes/postRoutes/dealerBrandMapping';
+import setupDailyVisitReportsPostRoutes from '../routes/postRoutes/dailyVisitReports';
+import setupAttendanceCheckInRoutes from '../routes/postRoutes/attendanceCheckIn';
+import setupAttendanceCheckOutRoutes from '../routes/postRoutes/attendanceCheckOut';
 
 // Initialize environment variables
 dotenv.config();
@@ -60,26 +94,62 @@ console.log('🔌 Registering API routes...');
 setupAuthRoutes(app);                    // /api/auth/login, /api/user/:id
 setupUsersRoutes(app);                   // /api/users/*
 
-// Core Data Endpoints
+// Core Data Endpoints (GET)
 setupBrandsAndMappingRoutes(app);        // /api/brands/*, /api/dealer-brand-mapping/*
 setupDealersRoutes(app);                 // /api/dealers/*
 setupDailyTasksRoutes(app);              // /api/daily-tasks/*
 setupPJPRoutes(app);                     // /api/pjp/*
 
-// Reports Endpoints
+// Reports Endpoints (GET)
 setupClientReportsRoutes(app);           // /api/client-reports/*
 setupCollectionReportsRoutes(app);       // /api/collection-reports/*
 setupCompetitionReportsRoutes(app);      // /api/competition-reports/*
 setupDailyVisitReportsRoutes(app);       // /api/daily-visit-reports/*
 setupTechnicalVisitReportsRoutes(app);   // /api/technical-visit-reports/*
 
-// Additional Data Endpoints
+// Additional Data Endpoints (GET)
 setupDdpRoutes(app);                     // /api/ddp/*
+setupDealerReportsAndScoresRoutes(app);  // /api/dealer-reports-scores/*
 setupRatingsRoutes(app);                 // /api/ratings/*
 setupSalesmanLeaveApplicationsRoutes(app); // /api/leave-applications/*
 setupSalesReportRoutes(app);             // /api/sales-reports/*
 setupSalesOrdersRoutes(app);             // /api/sales-orders/*
 setupSalesmanAttendanceRoutes(app);      // /api/salesman-attendance/*
+
+// POST Endpoints
+setupTechnicalVisitReportsPostRoutes(app); // POST /api/technical-visit-reports/*
+setupPermanentJourneyPlansPostRoutes(app); // POST /api/permanent-journey-plans/*
+setupDealersPostRoutes(app);             // POST /api/dealers/*
+setupSalesmanLeaveApplicationsPostRoutes(app); // POST /api/leave-applications/*
+setupClientReportsPostRoutes(app);       // POST /api/client-reports/*
+setupCompetitionReportsPostRoutes(app);  // POST /api/competition-reports/*
+setupDailyTasksPostRoutes(app);          // POST /api/daily-tasks/*
+setupDealerReportsAndScoresPostRoutes(app); // POST /api/dealer-reports-scores/*
+setupSalesReportPostRoutes(app);         // POST /api/sales-reports/*
+setupCollectionReportsPostRoutes(app);   // POST /api/collection-reports/*
+setupDdpPostRoutes(app);                 // POST /api/ddp/*
+setupRatingsPostRoutes(app);             // POST /api/ratings/*
+setupBrandsPostRoutes(app);              // POST /api/brands/*
+setupSalesOrdersPostRoutes(app);         // POST /api/sales-orders/*
+setupDealerBrandMappingPostRoutes(app);  // POST /api/dealer-brand-mapping/*
+setupDailyVisitReportsPostRoutes(app);   // POST /api/daily-visit-reports/*
+setupAttendanceCheckInRoutes(app);       // POST /api/attendance/check-in/*
+setupAttendanceCheckOutRoutes(app);      // POST /api/attendance/check-out/*
+
+// DELETE Endpoints
+setupDealersDeleteRoutes(app);           // DELETE /api/dealers/*
+setupPermanentJourneyPlansDeleteRoutes(app); // DELETE /api/permanent-journey-plans/*
+setupTechnicalVisitReportsDeleteRoutes(app); // DELETE /api/technical-visit-reports/*
+setupDailyVisitReportsDeleteRoutes(app); // DELETE /api/daily-visit-reports/*
+setupDailyTasksDeleteRoutes(app);        // DELETE /api/daily-tasks/*
+setupSalesReportDeleteRoutes(app);       // DELETE /api/sales-reports/*
+setupSalesmanLeaveApplicationsDeleteRoutes(app); // DELETE /api/leave-applications/*
+setupCompetitionReportsDeleteRoutes(app); // DELETE /api/competition-reports/*
+setupCollectionReportsDeleteRoutes(app); // DELETE /api/collection-reports/*
+setupBrandsDeleteRoutes(app);            // DELETE /api/brands/*
+setupRatingsDeleteRoutes(app);           // DELETE /api/ratings/*
+setupSalesOrdersDeleteRoutes(app);       // DELETE /api/sales-orders/*
+setupDealerReportsAndScoresDeleteRoutes(app); // DELETE /api/dealer-reports-scores/*
 
 console.log('✅ All routes registered successfully.');
 

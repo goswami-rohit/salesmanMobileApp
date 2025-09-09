@@ -1,9 +1,9 @@
-//  server/src/routes/postRoutes/dailyVisitReports.ts 
-// Daily Visit Reports POST endpoints using createAutoCRUD pattern
+//  server/src/routes/postRoutes/salesmanLeaveApplications.ts 
+// Salesman Leave Applications POST endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dailyVisitReports, insertDailyVisitReportSchema } from '../../db/schema';
+import { salesmanLeaveApplications, insertSalesmanLeaveApplicationSchema } from '../../db/schema';
 import { z } from 'zod';
 
 function createAutoCRUD(app: Express, config: {
@@ -48,17 +48,17 @@ function createAutoCRUD(app: Express, config: {
   });
 }
 
-export default function setupDailyVisitReportsPostRoutes(app: Express) {
+export default function setupSalesmanLeaveApplicationsPostRoutes(app: Express) {
   createAutoCRUD(app, {
-    endpoint: 'daily-visit-reports',
-    table: dailyVisitReports,
-    schema: insertDailyVisitReportSchema,
-    tableName: 'Daily Visit Report',
+    endpoint: 'leave-applications',
+    table: salesmanLeaveApplications,
+    schema: insertSalesmanLeaveApplicationSchema,
+    tableName: 'Salesman Leave Application',
     autoFields: {
       createdAt: () => new Date().toISOString(),
       updatedAt: () => new Date().toISOString()
     }
   });
   
-  console.log('✅ Daily Visit Reports POST endpoints setup complete');
+  console.log('✅ Salesman Leave Applications POST endpoints setup complete');
 }

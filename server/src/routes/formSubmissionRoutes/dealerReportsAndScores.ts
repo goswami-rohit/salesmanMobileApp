@@ -1,9 +1,8 @@
-//  server/src/routes/postRoutes/dailyVisitReports.ts 
-// Daily Visit Reports POST endpoints using createAutoCRUD pattern
+// Dealer Reports and Scores POST endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dailyVisitReports, insertDailyVisitReportSchema } from '../../db/schema';
+import { dealerReportsAndScores, insertDealerReportsAndScoresSchema } from '../../db/schema';
 import { z } from 'zod';
 
 function createAutoCRUD(app: Express, config: {
@@ -48,17 +47,18 @@ function createAutoCRUD(app: Express, config: {
   });
 }
 
-export default function setupDailyVisitReportsPostRoutes(app: Express) {
+export default function setupDealerReportsAndScoresPostRoutes(app: Express) {
   createAutoCRUD(app, {
-    endpoint: 'daily-visit-reports',
-    table: dailyVisitReports,
-    schema: insertDailyVisitReportSchema,
-    tableName: 'Daily Visit Report',
+    endpoint: 'dealer-reports-scores',
+    table: dealerReportsAndScores,
+    schema: insertDealerReportsAndScoresSchema,
+    tableName: 'Dealer Reports and Scores',
     autoFields: {
+      lastUpdatedDate: () => new Date().toISOString(),
       createdAt: () => new Date().toISOString(),
       updatedAt: () => new Date().toISOString()
     }
   });
   
-  console.log('✅ Daily Visit Reports POST endpoints setup complete');
+  console.log('✅ Dealer Reports and Scores POST endpoints setup complete');
 }

@@ -1,9 +1,9 @@
-//  server/src/routes/postRoutes/dailyVisitReports.ts 
-// Daily Visit Reports POST endpoints using createAutoCRUD pattern
+//  server/src/routes/postRoutes/permanentJourneyPlans.ts 
+// Permanent Journey Plans POST endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dailyVisitReports, insertDailyVisitReportSchema } from '../../db/schema';
+import { permanentJourneyPlans, insertPermanentJourneyPlanSchema } from '../../db/schema';
 import { z } from 'zod';
 
 function createAutoCRUD(app: Express, config: {
@@ -48,17 +48,17 @@ function createAutoCRUD(app: Express, config: {
   });
 }
 
-export default function setupDailyVisitReportsPostRoutes(app: Express) {
+export default function setupPermanentJourneyPlansPostRoutes(app: Express) {
   createAutoCRUD(app, {
-    endpoint: 'daily-visit-reports',
-    table: dailyVisitReports,
-    schema: insertDailyVisitReportSchema,
-    tableName: 'Daily Visit Report',
+    endpoint: 'permanent-journey-plans',
+    table: permanentJourneyPlans,
+    schema: insertPermanentJourneyPlanSchema,
+    tableName: 'Permanent Journey Plan',
     autoFields: {
       createdAt: () => new Date().toISOString(),
       updatedAt: () => new Date().toISOString()
     }
   });
   
-  console.log('✅ Daily Visit Reports POST endpoints setup complete');
+  console.log('✅ Permanent Journey Plans POST endpoints setup complete');
 }
