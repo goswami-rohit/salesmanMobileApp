@@ -8,7 +8,6 @@ import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppHeader from '../../components/AppHeader';
-import { createAttendanceOut } from '../../backendConnections/apiServices';
 
 type RootStackParamList = {
   Home: { checkedIn: boolean };
@@ -16,7 +15,13 @@ type RootStackParamList = {
 type NavigationProps = NativeStackNavigationProp<RootStackParamList>;
 type UserLite = { id: number };
 
-export default function AttendanceOutForm() {
+interface AttendanceOutFormProps {
+  userId: number;
+  onSubmitted: () => void;
+  onCancel: () => void;
+}
+
+export default function AttendanceOutForm({ userId, onSubmitted, onCancel }: AttendanceOutFormProps) {
   const navigation = useNavigation<NavigationProps>();
   const theme = useTheme();
 

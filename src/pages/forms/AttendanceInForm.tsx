@@ -9,7 +9,6 @@ import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AppHeader from '../../components/AppHeader';
-import { createAttendanceIn } from '../../backendConnections/apiServices'; // Import the service function
 
 // Define the navigation props type for type safety
 type RootStackParamList = {
@@ -18,7 +17,13 @@ type RootStackParamList = {
 type NavigationProps = NativeStackNavigationProp<RootStackParamList>;
 type UserLite = { id: number };
 
-export default function AttendanceInForm() {
+interface AttendanceInFormProps {
+  userId: number;
+  onSubmitted: () => void;
+  onCancel: () => void;
+}
+
+export default function AttendanceInForm({ userId, onSubmitted, onCancel }: AttendanceInFormProps) {
   const navigation = useNavigation<NavigationProps>();
   const theme = useTheme();
   const cameraRef = useRef<CameraView>(null);

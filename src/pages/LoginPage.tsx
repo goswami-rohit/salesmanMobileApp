@@ -1,95 +1,144 @@
-// src/pages/LoginPage.tsx
-import React, { useMemo, useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, KeyboardAvoidingView, Platform
-} from 'react-native';
+// src/pages/LoginScreen.tsx
+import React, { useState } from 'react';
+import { View, StatusBar } from 'react-native';
+import { 
+  TextInput, 
+  Button, 
+  Card, 
+  Text, 
+  HelperText, 
+  Avatar 
+} from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
-import { useTheme } from 'react-native-paper';
-import { API_HOST } from '../backendConnections/apiPort';
+import LinearGradient from 'react-native-linear-gradient';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-type User = { id: number; email?: string; firstName?: string | null; lastName?: string | null; role?: string | null; phoneNumber?: string | null; company?: { id: number; companyName: string } | null; };
+// It's good practice to type your navigation stack
+type RootStackParamList = {
+  Login: undefined;
+  CrmDashboard: undefined;
+};
 
-export default function LoginPage(): React.ReactElement | null {
-  const [loginId, setLoginId] = useState('');
-  const [password, setPassword] = useState('');
+type LoginScreenProps = NativeStackScreenProps<RootStackParamList, 'Login'>;
+
+export default function LoginScreen({ navigation }: LoginScreenProps) {
+  const [formData, setFormData] = useState({
+    loginId: '',
+    password: ''
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const navigation = useNavigation();
-  const theme = useTheme();
 
-  // Create styles using theme inside component (memoized)
-  const styles = useMemo(() => StyleSheet.create({
-    container: { flex: 1, justifyContent: 'center', padding: 16, backgroundColor: theme.colors.background },
-    card: { backgroundColor: theme.colors.surface, padding: 20, borderRadius: 12, elevation: 4 },
-    title: { fontSize: 22, fontWeight: '700', marginBottom: 12, textAlign: 'center', color: theme.colors.onSurface },
-    label: { fontSize: 13, marginTop: 8, marginBottom: 6, color: theme.colors.onSurface },
-    input: { borderWidth: 1, borderColor: theme.colors.onSurface, padding: 12, borderRadius: 8, color: theme.colors.onSurface },
-    button: { marginTop: 16, padding: 14, backgroundColor: theme.colors.primary, borderRadius: 8, alignItems: 'center' },
-    buttonDisabled: { opacity: 0.7 },
-    buttonText: { color: theme.colors.onPrimary ?? '#fff', fontWeight: '600' },
-    error: { color: theme.colors.error ?? '#ef4444', marginTop: 8 },
-    hint: { marginTop: 12, fontSize: 12, color: theme.colors.onSurface, textAlign: 'center' },
-  }), [theme]);
-
-  const saveUser = async (user: User) => {
-    try {
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-      await AsyncStorage.setItem('isAuthenticated', 'true');
-      await AsyncStorage.setItem('userId', String(user.id));
-    } catch (e) { console.warn('Failed to save user', e); }
+  const handleInputChange = (name: 'loginId' | 'password', value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (error) setError('');
   };
 
   const handleLogin = async () => {
-    if (!loginId.trim() || !password) { setError('Please enter both Login ID and password'); return; }
-    setIsLoading(true); setError('');
+    if (!formData.loginId || !formData.password) {
+      setError('Please enter both Login ID and password');
+      return;
+    }
+    setIsLoading(true);
+    setError('');
     try {
-      const resp = await fetch(`/api/auth/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginId: loginId.trim(), password }),
+      const response = await fetch('YOUR_API_ENDPOINT/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loginId: formData.loginId,
+          password: formData.password
+        })
       });
-      if (!resp.ok) { const body = await resp.json().catch(() => ({})); setError(body.error || 'Invalid credentials'); setIsLoading(false); return; }
-      const json = await resp.json();
-      const user: User = json.user;
-      if (!user || !user.id) { setError('Login response missing user data'); setIsLoading(false); return; }
-      await saveUser(user);
-
-      // Reset navigation into Drawer -> MainTabs -> Home (matches your structure)
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: 'Root' as never,
-            params: { screen: 'MainTabs', params: { screen: 'Home' } } as any,
-          } as any,
-        ],
-      });
+      if (response.ok) {
+        const data = await response.json();
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+        await AsyncStorage.setItem('isAuthenticated', 'true');
+        await AsyncStorage.setItem('userId', data.user.id.toString());
+        navigation.navigate('CrmDashboard'); 
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Invalid credentials');
+      }
     } catch (err) {
-      console.error('Login error', err);
+      console.error('Login error:', err);
       setError('Network error. Please try again.');
-    } finally { setIsLoading(false); }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Sign in</Text>
+    // 1. Replaced View with LinearGradient for the background
+    <LinearGradient 
+      colors={['#EFF6FF', '#E0E7FF']} // from-blue-50 to-indigo-100
+      className="flex-1 items-center justify-center p-4"
+    >
+      <StatusBar barStyle="dark-content" />
+      <Card className="w-full max-w-md rounded-xl shadow-xl bg-white">
+        
+        {/* 2. Added a themed header view inside the card */}
+        <View className="items-center bg-blue-600 p-6 rounded-t-xl">
+          <View className="w-16 h-16 bg-white/20 rounded-full items-center justify-center mb-4">
+            <Avatar.Icon size={48} icon="office-building" color="#1D4ED8" style={{backgroundColor: 'transparent'}}/>
+          </View>
+          <Text variant="headlineSmall" className="font-bold text-white">
+            Sales CRM
+          </Text>
+          <Text variant="bodyMedium" className="text-blue-200 mt-1">
+            Enter your credentials to access the system
+          </Text>
+        </View>
+        
+        {/* Card content is now separate from the header */}
+        <Card.Content className="p-6">
+          <TextInput
+            label="Login ID / Email"
+            value={formData.loginId}
+            onChangeText={(text) => handleInputChange('loginId', text)}
+            disabled={isLoading}
+            left={<TextInput.Icon icon="account" />}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            className="mb-4 bg-gray-50"
+          />
 
-        <Text style={styles.label}>Employee ID</Text>
-        <TextInput style={styles.input} placeholder="e.g. EMP-...." autoCapitalize="none" value={loginId} onChangeText={setLoginId} editable={!isLoading} placeholderTextColor={theme.colors.onSurface} />
+          <TextInput
+            label="Password"
+            value={formData.password}
+            onChangeText={(text) => handleInputChange('password', text)}
+            secureTextEntry
+            disabled={isLoading}
+            left={<TextInput.Icon icon="lock" />}
+            className="mb-4 bg-gray-50"
+          />
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput style={styles.input} placeholder="Your password" secureTextEntry value={password} onChangeText={setPassword} editable={!isLoading} placeholderTextColor={theme.colors.onSurface} />
+          {error ? (
+            <HelperText type="error" visible={!!error} className="mb-2">
+              {error}
+            </HelperText>
+          ) : null}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+          {/* 3. Styled button to match the theme color */}
+          <Button 
+            mode="contained" 
+            onPress={handleLogin}
+            loading={isLoading}
+            disabled={isLoading}
+            contentStyle={{ paddingVertical: 6 }}
+            className="mt-2 bg-blue-600"
+          >
+            {isLoading ? 'Signing in...' : 'Sign In'}
+          </Button>
 
-        <TouchableOpacity style={[styles.button, isLoading ? styles.buttonDisabled : null]} onPress={handleLogin} disabled={isLoading}>
-          {isLoading ? <ActivityIndicator color={theme.colors.onPrimary ?? '#fff'} /> : <Text style={styles.buttonText}>Sign In</Text>}
-        </TouchableOpacity>
-
-        <Text style={styles.hint}>Use company credentials provided by admin</Text>
-      </View>
-    </KeyboardAvoidingView>
+          <View className="mt-6 items-center">
+            <Text variant="bodyMedium" className="text-gray-700">Use your company-provided credentials</Text>
+            <Text variant="bodySmall" className="mt-1 text-gray-500">
+              Login ID or Email • Password from your administrator
+            </Text>
+          </View>
+        </Card.Content>
+      </Card>
+    </LinearGradient>
   );
 }

@@ -1,186 +1,200 @@
 // src/pages/forms/LeaveApplicationForm.tsx
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, TextInput, useTheme } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { View, ScrollView, TouchableOpacity, Platform, Alert } from 'react-native';
+import { Text, Button, TextInput, HelperText } from 'react-native-paper';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { format } from 'date-fns';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import AppHeader from '../../components/AppHeader';
-import { createLeaveApplication } from '../../backendConnections/apiServices'; // Import the service function
 
-// Placeholder type for user data (in a real app, from context/global state)
-type UserLite = { id: number; };
+// --- Schema (Corrected) ---
+const LeaveSchema = z.object({
+    userId: z.number().int().positive(),
+    leaveType: z.string().min(1, "Leave type is required"),
+    startDate: z.date(),
+    endDate: z.date(),
+    reason: z.string().min(5, "Please provide a brief reason"),
+    status: z.literal("pending").optional(),
+  }).refine((data) => data.endDate >= data.startDate, {
+    message: "End date cannot be earlier than start date",
+    path: ["endDate"],
+  });
 
-export default function LeaveApplicationForm() {
-  const navigation = useNavigation();
-  const theme = useTheme();
+export type LeaveFormValues = z.infer<typeof LeaveSchema>;
 
-  // In a real app, user info would come from a global state/context.
-  const [currentUser] = useState<UserLite>({ id: 1 });
+// --- Props ---
+interface Props {
+  userId?: number | null;
+  onSubmitted?: (payload: LeaveFormValues) => void;
+  onCancel?: () => void;
+}
 
-  // --- State Management ---
+// --- Component ---
+export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Form Fields
-  const [leaveType, setLeaveType] = useState("");
-  const [startDate, setStartDate] = useState<Date | null>(new Date());
-  const [endDate, setEndDate] = useState<Date | null>(new Date());
-  const [reason, setReason] = useState("");
+  const [datePicker, setDatePicker] = useState({ visible: false, field: 'startDate' as 'startDate' | 'endDate' });
 
-  // Date Picker State
-  const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [datePickerField, setDatePickerField] = useState<'start' | 'end'>('start');
+  const { control, handleSubmit, setValue, watch, formState: { errors, isValid } } = useForm<LeaveFormValues>({
+    resolver: zodResolver(LeaveSchema),
+    mode: 'onChange',
+    defaultValues: {
+      userId: userId ?? 0,
+      leaveType: '',
+      startDate: new Date(),
+      endDate: new Date(),
+      reason: '',
+      status: 'pending',
+    },
+  });
 
+  const startDate = watch('startDate');
+  const endDate = watch('endDate');
 
-  // --- Form Submission ---
-  const validate = (): string | null => {
-    if (!leaveType.trim() || !startDate || !endDate || !reason.trim()) {
-      return "Please fill all required fields.";
-    }
-    if (endDate < startDate) {
-      return "End date cannot be earlier than the start date.";
-    }
-    return null;
-  };
-  
-  const handleSubmit = async () => {
-    const error = validate();
-    if (error) {
-      return Alert.alert("Validation Error", error);
-    }
-    setIsSubmitting(true);
-
-    const leavePayload = {
-      userId: currentUser.id,
-      leaveType,
-      startDate: startDate?.toISOString().split('T')[0],
-      endDate: endDate?.toISOString().split('T')[0],
-      reason,
-      status: 'pending'
-    };
-    
-    // Call the central API service function
-    const result = await createLeaveApplication(leavePayload) as { success: boolean };
-    setIsSubmitting(false);
-
-    if (result.success) {
-      Alert.alert('Success', 'Your leave application has been submitted successfully.');
-      navigation.goBack();
-    } else {
-      Alert.alert('Error', 'Failed to submit your leave application.');
-    }
-  };
-  
-  // --- UI Helpers & Rendering ---
-  const textInputTheme = { colors: { primary: theme.colors.primary, text: '#e5e7eb', placeholder: '#9ca3af', background: '#1e293b', outline: '#475569' } };
-  
-  const showDatePicker = (field: 'start' | 'end') => {
-      setDatePickerField(field);
-      setDatePickerVisible(true);
+  const showDatePicker = (field: 'startDate' | 'endDate') => {
+    setDatePicker({ visible: true, field });
   };
 
   const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-      setDatePickerVisible(Platform.OS === 'ios');
-      if (event.type === 'dismissed') {
-        setDatePickerVisible(false);
-        return;
+    setDatePicker({ ...datePicker, visible: Platform.OS === 'ios' });
+    if (event.type === 'dismissed' || !selectedDate) {
+      setDatePicker({ ...datePicker, visible: false });
+      return;
+    }
+
+    setValue(datePicker.field, selectedDate, { shouldValidate: true, shouldDirty: true });
+    if (datePicker.field === 'startDate' && selectedDate > endDate) {
+      setValue('endDate', selectedDate, { shouldValidate: true, shouldDirty: true });
+    }
+    setDatePicker({ ...datePicker, visible: false });
+  };
+
+  const submit = async (values: LeaveFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const leavePayload = {
+        ...values,
+        startDate: values.startDate.toISOString().split('T')[0],
+        endDate: values.endDate.toISOString().split('T')[0],
+      };
+      
+      const response = await fetch("YOUR_API_ENDPOINT/api/leave-applications", { // <-- Make sure to use your actual API endpoint
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(leavePayload),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to submit leave application");
       }
-      if (selectedDate) {
-          if (datePickerField === 'start') {
-              setStartDate(selectedDate);
-              if (endDate && selectedDate > endDate) {
-                  setEndDate(selectedDate);
-              }
-          } else {
-              setEndDate(selectedDate);
-          }
-      }
-      setDatePickerVisible(false);
+      onSubmitted?.(values);
+
+    } catch (error: any) {
+      console.error("Leave application submission error:", error);
+      Alert.alert("Submission Failed", error.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
-      <AppHeader title="Leave Application" />
+    <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <Text variant="headlineSmall" className="font-bold text-center mb-1">Request Time Off</Text>
+      <Text variant="bodyMedium" className="text-gray-500 text-center mb-6">Fill in the details for your leave request.</Text>
 
-      {datePickerVisible && (
+      {datePicker.visible && (
         <DateTimePicker
-            value={ (datePickerField === 'start' ? startDate : endDate) || new Date() }
-            mode="date"
-            display="default"
-            onChange={onDateChange}
-            minimumDate={datePickerField === 'end' && startDate ? startDate : undefined}
+          value={watch(datePicker.field)}
+          mode="date"
+          display="default"
+          onChange={onDateChange}
+          minimumDate={datePicker.field === 'endDate' ? startDate : undefined}
         />
       )}
 
-      <ScrollView contentContainerStyle={styles.formContainer}>
-        <Text variant="headlineSmall" style={styles.title}>Request Time Off</Text>
-        <Text variant="bodyMedium" style={styles.subtitle}>Fill in the details for your leave request.</Text>
-        
-        <TextInput 
-            label="Leave Type (e.g., Sick, Personal) *" 
-            value={leaveType} 
-            onChangeText={setLeaveType} 
-            style={styles.input} 
-            theme={textInputTheme} 
-        />
-        
-        <View style={styles.dateContainer}>
-            <TouchableOpacity style={{flex: 1}} onPress={() => showDatePicker('start')}>
-                <TextInput 
-                    label="Start Date *" 
-                    value={startDate ? startDate.toLocaleDateString() : ''} 
-                    editable={false} 
-                    style={styles.input} 
-                    theme={textInputTheme}
-                    right={<TextInput.Icon icon="calendar" />}
-                />
-            </TouchableOpacity>
-            <TouchableOpacity style={{flex: 1}} onPress={() => showDatePicker('end')}>
-                 <TextInput 
-                    label="End Date *" 
-                    value={endDate ? endDate.toLocaleDateString() : ''} 
-                    editable={false} 
-                    style={styles.input} 
-                    theme={textInputTheme}
-                    right={<TextInput.Icon icon="calendar" />}
-                />
-            </TouchableOpacity>
+      {/* --- Form Fields using Controller --- */}
+      <Controller
+        control={control}
+        name="leaveType"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput
+              label="Leave Type (e.g., Sick, Personal)"
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+              error={!!errors.leaveType}
+            />
+            {errors.leaveType && <HelperText type="error">{errors.leaveType.message}</HelperText>}
+          </View>
+        )}
+      />
+
+      <View className="flex-row gap-4 mb-4">
+        {/* Start Date */}
+        <View className="flex-1">
+          <TouchableOpacity onPress={() => showDatePicker('startDate')}>
+            <TextInput
+              label="Start Date"
+              value={format(startDate, "PPP")}
+              editable={false}
+              right={<TextInput.Icon icon="calendar" />}
+              error={!!errors.startDate}
+            />
+          </TouchableOpacity>
+          {errors.startDate && <HelperText type="error">{errors.startDate.message}</HelperText>}
         </View>
 
-        <TextInput 
-            label="Reason *" 
-            multiline 
-            numberOfLines={4} 
-            value={reason} 
-            onChangeText={setReason} 
-            style={styles.input} 
-            theme={textInputTheme} 
-        />
+        {/* End Date */}
+        <View className="flex-1">
+          <TouchableOpacity onPress={() => showDatePicker('endDate')}>
+            <TextInput
+              label="End Date"
+              value={format(endDate, "PPP")}
+              editable={false}
+              right={<TextInput.Icon icon="calendar" />}
+              error={!!errors.endDate}
+            />
+          </TouchableOpacity>
+          {errors.endDate && <HelperText type="error">{errors.endDate.message}</HelperText>}
+        </View>
+      </View>
 
-        <Button 
-            mode="contained" 
-            onPress={handleSubmit} 
-            style={styles.button} 
-            loading={isSubmitting} 
-            disabled={isSubmitting}
-        >
-          Submit Application
+      <Controller
+        control={control}
+        name="reason"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput
+              label="Reason"
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+              multiline
+              numberOfLines={4}
+              error={!!errors.reason}
+            />
+            {errors.reason && <HelperText type="error">{errors.reason.message}</HelperText>}
+          </View>
+        )}
+      />
+      
+      {/* Action Buttons */}
+      <View className="flex-row gap-4 mt-4">
+        <Button mode="outlined" onPress={onCancel} className="flex-1">
+          Cancel
         </Button>
-      </ScrollView>
-    </SafeAreaView>
+        <Button
+          mode="contained"
+          onPress={handleSubmit(submit)}
+          loading={isSubmitting}
+          disabled={!isValid || isSubmitting}
+          className="flex-1"
+        >
+          Submit
+        </Button>
+      </View>
+    </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0f172a" },
-  formContainer: { padding: 16, paddingBottom: 32 },
-  title: { color: "#e5e7eb", marginBottom: 4, fontWeight: 'bold', textAlign: 'center' },
-  subtitle: { color: '#9ca3af', marginBottom: 24, textAlign: 'center' },
-  input: { marginBottom: 16 },
-  dateContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  button: { marginTop: 8, paddingVertical: 4, width: '100%' },
-});
-
