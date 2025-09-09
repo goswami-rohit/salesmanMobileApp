@@ -9,6 +9,7 @@ module.exports = ({ config }) => {
     owner: "rohitgoswami",
     userInterfaceStyle: "automatic",
     extra: {
+      APP_BASE_URL: process.env.APP_BASE_URL || '',
       VITE_RADAR_PUBLISHABLE_KEY: process.env.VITE_RADAR_PUBLISHABLE_KEY || '',
       DATABASE_URL: process.env.DATABASE_URL || '',
       RADAR_SECRET_KEY: process.env.RADAR_SECRET_KEY || '',

@@ -1,5 +1,5 @@
 // src/pages/forms/AddDealer.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScrollView, View, TouchableOpacity, PermissionsAndroid, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { SubmitHandler, Resolver } from 'react-hook-form';
@@ -12,7 +12,7 @@ import { z } from 'zod';
 import RNPickerSelect from 'react-native-picker-select';
 import Geolocation from 'react-native-geolocation-service';
 
-import { useAppStore, DEALER_TYPES, REGIONS, BRANDS, FEEDBACKS } from '../../components/ReusableConstants';
+import { useAppStore, DEALER_TYPES, BRANDS, FEEDBACKS, BASE_URL } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
 import Toast from 'react-native-toast-message';
 
@@ -72,7 +72,6 @@ export default function AddDealerForm() {
     },
   });
 
-
   const isSubDealer = watch('isSubDealer');
   const brandSelling = watch('brandSelling');
 
@@ -109,7 +108,7 @@ export default function AddDealerForm() {
         parentDealerId: values.isSubDealer ? values.parentDealerId : null,
       };
 
-      const response = await fetch('YOUR_API_ENDPOINT/api/dealers', {
+      const response = await fetch(`${BASE_URL}/api/dealers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -118,7 +117,11 @@ export default function AddDealerForm() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to create dealer');
 
-      Toast.show({ type: 'success', text1: 'Dealer Created', text2: 'The new dealer has been saved.' });
+      Toast.show({
+        type: 'success',
+        text1: 'Dealer Created',
+        text2: 'The new dealer has been saved.'
+      });
       navigation.goBack();
     } catch (error: any) {
       Alert.alert('Submission Failed', error.message);
@@ -196,20 +199,36 @@ export default function AddDealerForm() {
         )} />
 
         <View className="flex-row gap-4">
-          <Controller control={control} name="region" render={({ field: { onChange, value } }) => (
-            <View className="flex-1 mb-4">
-              <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
-                <RNPickerSelect onValueChange={onChange} value={value} items={REGIONS.map(r => ({ label: r, value: r }))} placeholder={{ label: "Region *", value: null }} style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />} />
+          <Controller
+            control={control}
+            name="region"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <View className="flex-1 mb-4">
+                <TextInput
+                  label="Region *"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  error={!!errors.region}
+                />
+                {errors.region && <HelperText type="error">{errors.region.message}</HelperText>}
               </View>
-              {errors.region && <HelperText type="error">{errors.region.message}</HelperText>}
-            </View>
-          )} />
-          <Controller control={control} name="area" render={({ field: { onChange, onBlur, value } }) => (
-            <View className="flex-1 mb-4">
-              <TextInput label="Area *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.area} />
-              {errors.area && <HelperText type="error">{errors.area.message}</HelperText>}
-            </View>
-          )} />
+            )} />
+          <Controller
+            control={control}
+            name="area"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <View className="flex-1 mb-4">
+                <TextInput
+                  label="Area *"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  error={!!errors.area}
+                />
+                {errors.area && <HelperText type="error">{errors.area.message}</HelperText>}
+              </View>
+            )} />
         </View>
 
         <Controller control={control} name="address" render={({ field: { onChange, onBlur, value } }) => (

@@ -12,7 +12,7 @@ import RNPickerSelect from 'react-native-picker-select';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 
-import { useAppStore } from '../../components/ReusableConstants';
+import { useAppStore, BASE_URL} from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
 import Toast from 'react-native-toast-message';
 
@@ -36,7 +36,7 @@ type CompetitionReportFormValues = z.infer<typeof CompetitionReportSchema>;
 export default function CompetitionReportForm() {
   const navigation = useNavigation();
   const { user } = useAppStore();
-  
+
   const [datePickerVisible, setDatePickerVisible] = useState(false);
 
   const { control, handleSubmit, setValue, watch, formState: { errors, isSubmitting, isValid } } = useForm<CompetitionReportFormValues>({
@@ -60,8 +60,8 @@ export default function CompetitionReportForm() {
   const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     setDatePickerVisible(Platform.OS === 'ios');
     if (event.type === 'dismissed' || !selectedDate) {
-        setDatePickerVisible(false);
-        return;
+      setDatePickerVisible(false);
+      return;
     }
     setValue('reportDate', selectedDate, { shouldValidate: true });
     setDatePickerVisible(false);
@@ -75,7 +75,7 @@ export default function CompetitionReportForm() {
         remarks: values.remarks || null,
       };
 
-      const response = await fetch('YOUR_API_ENDPOINT/api/competition-reports', {
+      const response = await fetch(`${BASE_URL}/api/competition-reports`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -102,14 +102,14 @@ export default function CompetitionReportForm() {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-1">New Competition Report</Text>
         <Text variant="bodyMedium" className="text-slate-400 text-center mb-6">Log information about competitor activity.</Text>
-        
+
         <View className="mb-4">
-            <TouchableOpacity onPress={() => setDatePickerVisible(true)}>
-                <TextInput label="Report Date *" value={format(reportDate, "PPP")} editable={false} right={<TextInput.Icon icon="calendar" />} error={!!errors.reportDate} />
-            </TouchableOpacity>
-            {errors.reportDate && <HelperText type="error">{errors.reportDate.message as string}</HelperText>}
+          <TouchableOpacity onPress={() => setDatePickerVisible(true)}>
+            <TextInput label="Report Date *" value={format(reportDate, "PPP")} editable={false} right={<TextInput.Icon icon="calendar" />} error={!!errors.reportDate} />
+          </TouchableOpacity>
+          {errors.reportDate && <HelperText type="error">{errors.reportDate.message as string}</HelperText>}
         </View>
-        
+
         <Controller control={control} name="brandName" render={({ field: { onChange, onBlur, value } }) => (
           <View className="mb-4">
             <TextInput label="Brand Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.brandName} />
@@ -139,20 +139,20 @@ export default function CompetitionReportForm() {
         )} />
 
         <Controller control={control} name="schemesYesNo" render={({ field: { onChange, value } }) => (
-            <View className="mb-4">
-              <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
-                  <RNPickerSelect 
-                    onValueChange={onChange} 
-                    value={value} 
-                    items={[{ label: 'Yes', value: 'Yes' }, { label: 'No', value: 'No' }]}
-                    placeholder={{ label: "Are schemes active? *", value: null}}
-                    style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} 
-                    useNativeAndroidPickerStyle={false} 
-                    Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />}
-                  />
-              </View>
-              {errors.schemesYesNo && <HelperText type="error">{errors.schemesYesNo.message}</HelperText>}
+          <View className="mb-4">
+            <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
+              <RNPickerSelect
+                onValueChange={onChange}
+                value={value}
+                items={[{ label: 'Yes', value: 'Yes' }, { label: 'No', value: 'No' }]}
+                placeholder={{ label: "Are schemes active? *", value: null }}
+                style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }}
+                useNativeAndroidPickerStyle={false}
+                Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />}
+              />
             </View>
+            {errors.schemesYesNo && <HelperText type="error">{errors.schemesYesNo.message}</HelperText>}
+          </View>
         )} />
 
         <Controller control={control} name="avgSchemeCost" render={({ field: { onChange, onBlur, value } }) => (

@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from 'expo-location';
 import Toast from 'react-native-toast-message';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { BASE_URL} from '../../components/ReusableConstants';
 
 // --- Type Definitions ---
 type Step = 'camera' | 'location' | 'loading';
@@ -54,7 +55,7 @@ export default function AttendanceOutForm({ userId, onSubmitted, onCancel }: Att
 
       const pickedUri = result.assets[0].uri;
       setPhotoUri(pickedUri);
-      
+
       await fetchLocation();
 
     } catch (err) {
@@ -94,29 +95,29 @@ export default function AttendanceOutForm({ userId, onSubmitted, onCancel }: Att
     formData.append('outTimeLatitude', String(location.coords.latitude));
     formData.append('outTimeLongitude', String(location.coords.longitude));
     formData.append('outTimeAccuracy', String(location.coords.accuracy));
-    
+
     formData.append('outTimeImage', {
-        uri: photoUri,
-        name: 'checkout.jpg',
-        type: 'image/jpeg',
+      uri: photoUri,
+      name: 'checkout.jpg',
+      type: 'image/jpeg',
     } as any);
 
     try {
-        const response = await fetch('YOUR_API_ENDPOINT/api/attendance/out', {
-            method: 'POST',
-            headers: { 'Content-Type': 'multipart/form-data' },
-            body: formData,
-        });
+      const response = await fetch(`${BASE_URL}/api/attendance/check-out`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'multipart/form-data' },
+        body: formData,
+      });
 
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Failed to check out.');
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to check out.');
 
-        Toast.show({type: 'success', text1: 'Checked Out Successfully!'});
-        onSubmitted();
+      Toast.show({ type: 'success', text1: 'Checked Out Successfully!' });
+      onSubmitted();
     } catch (error: any) {
-        Alert.alert('Submission Failed', error.message);
+      Alert.alert('Submission Failed', error.message);
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -133,10 +134,10 @@ export default function AttendanceOutForm({ userId, onSubmitted, onCancel }: Att
             Please take a selfie to mark your check-out.
           </Text>
           <View className="w-72 h-72 rounded-full bg-slate-800 border-2 border-slate-700 justify-center items-center overflow-hidden mb-6">
-              <View className="flex-1 bg-slate-800 items-center justify-center">
-                <Icon name="camera" size={64} color="#64748b" />
-                <Text className="text-slate-500 mt-2">Tap below to open camera</Text>
-              </View>
+            <View className="flex-1 bg-slate-800 items-center justify-center">
+              <Icon name="camera" size={64} color="#64748b" />
+              <Text className="text-slate-500 mt-2">Tap below to open camera</Text>
+            </View>
           </View>
           <Button mode="contained" icon="camera" onPress={takePicture} className="w-full p-1">
             Capture & Continue
@@ -172,15 +173,15 @@ export default function AttendanceOutForm({ userId, onSubmitted, onCancel }: Att
 
   return (
     <View className="flex-1 p-4 items-center justify-center bg-slate-900">
-        {renderContent()}
-        <Button 
-            onPress={onCancel} 
-            disabled={isSubmitting} 
-            className="absolute bottom-6"
-            textColor="gray"
-        >
-            Cancel
-        </Button>
+      {renderContent()}
+      <Button
+        onPress={onCancel}
+        disabled={isSubmitting}
+        className="absolute bottom-6"
+        textColor="gray"
+      >
+        Cancel
+      </Button>
     </View>
   );
 }

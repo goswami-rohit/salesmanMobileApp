@@ -7,8 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from 'expo-location';
 import Toast from 'react-native-toast-message';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
-import AppHeader from '../../components/AppHeader';
+import { BASE_URL} from '../../components/ReusableConstants';
 
 // --- Type Definitions ---
 type Step = 'camera' | 'location' | 'loading';
@@ -58,7 +57,7 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
 
       const pickedUri = result.assets[0].uri;
       setPhotoUri(pickedUri);
-      
+
       // Proceed to location step
       await fetchLocation();
 
@@ -103,30 +102,30 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
     formData.append('inTimeLatitude', String(location.coords.latitude));
     formData.append('inTimeLongitude', String(location.coords.longitude));
     formData.append('inTimeAccuracy', String(location.coords.accuracy));
-    
+
     // Append the image file
     formData.append('inTimeImage', {
-        uri: photoUri,
-        name: 'checkin.jpg',
-        type: 'image/jpeg',
+      uri: photoUri,
+      name: 'checkin.jpg',
+      type: 'image/jpeg',
     } as any);
 
     try {
-        const response = await fetch('YOUR_API_ENDPOINT/api/attendance/in', {
-            method: 'POST',
-            headers: { 'Content-Type': 'multipart/form-data' },
-            body: formData,
-        });
+      const response = await fetch(`${BASE_URL}/api/attendance/check-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'multipart/form-data' },
+        body: formData,
+      });
 
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Failed to check in.');
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to check in.');
 
-        Toast.show({type: 'success', text1: 'Checked In Successfully!'});
-        onSubmitted();
+      Toast.show({ type: 'success', text1: 'Checked In Successfully!' });
+      onSubmitted();
     } catch (error: any) {
-        Alert.alert('Submission Failed', error.message);
+      Alert.alert('Submission Failed', error.message);
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -143,10 +142,10 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
             Please take a clear selfie to mark your attendance.
           </Text>
           <View className="w-72 h-72 rounded-full bg-slate-800 border-2 border-slate-700 justify-center items-center overflow-hidden mb-6">
-              <View className="flex-1 bg-slate-800 items-center justify-center">
-                <Icon name="camera" size={64} color="#64748b" />
-                <Text className="text-slate-500 mt-2">Tap below to open camera</Text>
-              </View>
+            <View className="flex-1 bg-slate-800 items-center justify-center">
+              <Icon name="camera" size={64} color="#64748b" />
+              <Text className="text-slate-500 mt-2">Tap below to open camera</Text>
+            </View>
           </View>
           <Button mode="contained" icon="camera" onPress={takePicture} className="w-full p-1">
             Capture & Continue
@@ -183,15 +182,15 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
 
   return (
     <View className="flex-1 p-4 items-center justify-center bg-slate-900">
-        {renderContent()}
-        <Button 
-            onPress={onCancel} 
-            disabled={isSubmitting} 
-            className="absolute bottom-6"
-            textColor="gray"
-        >
-            Cancel
-        </Button>
+      {renderContent()}
+      <Button
+        onPress={onCancel}
+        disabled={isSubmitting}
+        className="absolute bottom-6"
+        textColor="gray"
+      >
+        Cancel
+      </Button>
     </View>
   );
 }

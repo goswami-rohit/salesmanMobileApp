@@ -5,6 +5,17 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 import { Card, Text, } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { create } from 'zustand';
+import Constants from 'expo-constants';
+
+// URL setting manager for whole frontend 
+type AppConfig = {
+  extra?: {
+    APP_BASE_URL?: string;
+  };
+};
+const manifest = Constants.manifest as unknown as AppConfig;
+export const BASE_URL = manifest?.extra?.APP_BASE_URL || "http://10.0.2.2:8000";
+// END URL manager ---------------------
 
 // --- STATE MANAGEMENT (Zustand) & INTERFACES ---
 // No changes are needed here. Zustand works perfectly in React Native.
@@ -189,7 +200,7 @@ export type DrawerStackParamList = {
   TVRForm: undefined;
   // These forms receive params, but they are opened in modals, not via direct navigation,
   // so we don't need to define params here. They are handled by the component's own props.
-  AttendanceInForm: undefined; 
+  AttendanceInForm: undefined;
   AttendanceOutForm: undefined;
 };
 
@@ -205,9 +216,45 @@ export const BRANDS = ["Star", "Amrit", "Dalmia", "Topcem", "Black Tiger", "Sury
 export const UNITS = ["MT", "KG", "Bags"] as const;
 export const FEEDBACKS = ["Interested", "Not Interested", "Follow-up Required"];
 
-// Dynamically fetch area and regions of dealers/sub dealers from NEON later
-export const REGIONS = ["Kamrup M", "Kamrup", "Karbi Anglong", "Dehmaji"];
-export const AREAS = ["Guwahati", "Beltola", "Zoo Road", "Tezpur", "Diphu", "Nagaon", "Barpeta"];
+// Dynamically fetch area and regions of dealers/sub dealers from NEON
+type Dealer = {
+  id: number | string;
+  region?: string | null;
+  area?: string | null;
+  [key: string]: any;
+};
+
+// Fetch regions
+export async function fetchRegions(): Promise<string[]> {
+  const url = `${BASE_URL}/api/dealers`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch regions');
+  const json: { success: boolean; data: Dealer[] } = await res.json();
+  const regions: string[] = [
+    ...new Set(
+      json.data
+        .map((d) => d.region)
+        .filter((r): r is string => typeof r === 'string' && r.trim() !== '')
+    ),
+  ];
+  return regions;
+}
+
+// Fetch areas
+export async function fetchAreas(): Promise<string[]> {
+  const url = `${BASE_URL}/api/dealers`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch areas');
+  const json: { success: boolean; data: Dealer[] } = await res.json();
+  const areas: string[] = [
+    ...new Set(
+      json.data
+        .map((d) => d.area)
+        .filter((a): a is string => typeof a === 'string' && a.trim() !== '')
+    ),
+  ];
+  return areas;
+}
 
 // TVR specific consts
 export const INFLUENCERS = [
@@ -246,3 +293,92 @@ export const CHANNEL_PARTNER_VISIT = [
 
 // New constants for PJP Form
 export const PJP_STATUS = ["planned", "active", "completed", "cancelled"] as const;
+
+// fetch user details 
+export async function fetchUserById(userId: number) {
+  const res = await fetch(`${BASE_URL}/api/users/${userId}`);
+  if (!res.ok) throw new Error("Failed to fetch user");
+  const json = await res.json();
+  return json.data;
+}
+
+export async function fetchUsersByRole(role: string, limit = 50) {
+  const res = await fetch(`${BASE_URL}/api/users/role/${role}?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch users by role");
+  const json = await res.json();
+  return json.data;
+}
+
+export async function fetchAllUsers(limit = 50) {
+  const res = await fetch(`${BASE_URL}/api/users?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch users");
+  const json = await res.json();
+  return json.data;
+}
+
+
+// Fetch users by area (returns array of user objects)
+export async function fetchUsersByArea(area: string, limit = 50) {
+  if (!area) throw new Error("Area is required");
+  const url = `${BASE_URL}/api/users?area=${encodeURIComponent(area)}&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const txt = await res.text().catch(() => null);
+    throw new Error(`Failed to fetch users by area (${area}): ${res.status} ${txt ?? res.statusText}`);
+  }
+  const json = await res.json();
+  return json.data;
+}
+
+
+// Fetch users by region (returns array of user objects) 
+export async function fetchUsersByRegion(region: string, limit = 50) {
+  if (!region) throw new Error("Region is required");
+  const url = `${BASE_URL}/api/users?region=${encodeURIComponent(region)}&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const txt = await res.text().catch(() => null);
+    throw new Error(`Failed to fetch users by region (${region}): ${res.status} ${txt ?? res.statusText}`);
+  }
+  const json = await res.json();
+  return json.data;
+}
+
+/**
+ * Fetch a user's company object by userId.
+ * Flow:
+ *  1) GET /api/users/:id  -> read user.companyId
+ *  2) GET /api/companies/:companyId -> return company object
+ */
+export async function fetchCompanyByUserId(userId: number) {
+  if (!userId) throw new Error("userId is required");
+
+  // 1) fetch user
+  const userRes = await fetch(`${BASE_URL}/api/users/${userId}`);
+  if (!userRes.ok) {
+    const txt = await userRes.text().catch(() => null);
+    throw new Error(
+      `Failed to fetch user (${userId}): ${userRes.status} ${txt ?? userRes.statusText}`
+    );
+  }
+
+  const userJson = await userRes.json();
+  const user = userJson?.data;
+  const companyId = user?.companyId;
+
+  if (!companyId) {
+    return null; // user has no company assigned
+  }
+
+  // 2) fetch company by id
+  const compRes = await fetch(`${BASE_URL}/api/companies/${companyId}`);
+  if (!compRes.ok) {
+    const txt = await compRes.text().catch(() => null);
+    throw new Error(
+      `Failed to fetch company (${companyId}): ${compRes.status} ${txt ?? compRes.statusText}`
+    );
+  }
+
+  const compJson = await compRes.json();
+  return compJson?.data ?? null;
+}

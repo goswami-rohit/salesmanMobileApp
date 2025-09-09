@@ -1,4 +1,4 @@
-//  server/src/routes/postRoutes/salesmanLeaveApplications.ts 
+//  server/src/routes/postRoutes/salesManleave.ts 
 // Salesman Leave Applications POST endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

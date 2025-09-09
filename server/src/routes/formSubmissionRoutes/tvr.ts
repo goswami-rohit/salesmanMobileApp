@@ -1,4 +1,4 @@
-//  server/src/routes/postRoutes/technicalVisitReports.ts 
+//  server/src/routes/postRoutes/tvr.ts 
 // Technical Visit Reports POST endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

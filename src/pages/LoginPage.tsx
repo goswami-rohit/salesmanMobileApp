@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 // --- FIX: Import the centralized navigation types ---
-import { AppStackParamList } from '../components/ReusableConstants'; 
+import { AppStackParamList, BASE_URL } from '../components/ReusableConstants'; 
 
 type LoginScreenProps = NativeStackScreenProps<AppStackParamList, 'Login'>;
 
@@ -42,7 +42,7 @@ export default function LoginPage({ route }: LoginScreenProps) {
     setIsLoading(true);
     setError('');
     try {
-      const response = await fetch('http://10.0.2.2:8000/api/auth/login', {
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

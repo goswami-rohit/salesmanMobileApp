@@ -1,5 +1,5 @@
 // src/reusableConstants/SideNavBar.tsx
-import React from "react";
+import React, { useEffect } from "react";
 import { View } from "react-native";
 import {
   DrawerContentScrollView,
@@ -12,7 +12,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 // Import your centralized navigation types and the Zustand store
 import { DrawerStackParamList, MainTabsParamList } from "./ReusableConstants";
-import { useAppStore } from "./ReusableConstants";
+import { useAppStore, fetchUserById } from "./ReusableConstants";
 
 // --- Type Definitions ---
 type FormItem = {
@@ -47,9 +47,26 @@ const FORM_ITEMS: FormItem[] = [
 
 // --- Component ---
 export default function SideNavBar(props: DrawerContentComponentProps) {
-  const { user } = useAppStore();
+  const { user, setUser } = useAppStore();
   // Use the correctly typed navigation hook
   const navigation = useNavigation<SideNavBarNavigationProp>();
+
+  // Fetch user on mount if not already loaded
+  useEffect(() => {
+    const loadUser = async () => {
+      if (!user?.id) {
+        try {
+          // Replace with actual userId from your auth/session
+          const userId = 1;
+          const fetchedUser = await fetchUserById(userId);
+          setUser(fetchedUser);
+        } catch (err) {
+          console.error("Failed to load user:", err);
+        }
+      }
+    };
+    loadUser();
+  }, [user, setUser]);
 
   const getInitials = () => {
     const first = user?.firstName?.[0] || "";
@@ -82,7 +99,7 @@ export default function SideNavBar(props: DrawerContentComponentProps) {
             {user ? `${user.firstName} ${user.lastName}` : "John Doe"}
           </Text>
           <Text variant="bodySmall" className="text-slate-400">
-            {user?.role || "Sales Executive"}
+            {user?.role || "User Role"}
           </Text>
         </View>
       </View>

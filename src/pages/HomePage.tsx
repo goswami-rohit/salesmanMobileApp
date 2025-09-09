@@ -3,12 +3,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SafeAreaView, ScrollView, View, TouchableOpacity, RefreshControl } from 'react-native';
 import { Avatar, Button, Card, Text, ActivityIndicator, IconButton, Modal, Portal, Chip } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
 import Toast from 'react-native-toast-message';
 import { format } from 'date-fns';
+import companyLogo from '../assets/best-cement-copy.png';
 
 // Forms for Modals and Navigation
 import AddDealerForm from './forms/AddDealerForm';
@@ -21,8 +23,7 @@ import SalesOrderForm from './forms/SalesOrderForm';
 import TVRForm from './forms/TVRForm';
 
 // Zustand Store and Reusable Components
-import { useAppStore } from '../components/ReusableConstants';
-import { StatTile, LoadingList } from '../components/ReusableConstants'; // Assuming these are in ReusableUI
+import { useAppStore, fetchCompanyByUserId, LoadingList, BASE_URL } from '../components/ReusableConstants';
 
 // FIX: Define all your screen names here for type-safe navigation
 export type HomePageParamList = {
@@ -62,21 +63,22 @@ interface ActionButtonProps {
 
 // 1. API Actions Hook (Adapted for React Native)
 const useAPIActions = () => {
-  const { setData, user } = useAppStore();
+  const { setData, user, setUser } = useAppStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const apiCall = useCallback(async (endpoint: string, options: RequestInit = {}) => {
-    // Your base API URL would go here
-    const BASE_URL = 'YOUR_API_ENDPOINT';
     try {
-      const response = await fetch(`${BASE_URL}${endpoint}`, {
-        headers: { 'Content-Type': 'application/json', ...options.headers }, ...options,
+      const resp = await fetch(`${BASE_URL}${endpoint}`, {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options,
       });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || `API Error: ${response.status}`);
+      if (!resp.ok) {
+        // try to parse JSON error but fallback to text
+        let errBody;
+        try { errBody = await resp.json(); } catch { errBody = await resp.text().catch(() => null); }
+        throw new Error(errBody?.error || `${resp.status} ${resp.statusText}`);
       }
-      return await response.json();
+      return await resp.json();
     } catch (error) {
       console.error(`API call failed for ${endpoint}:`, error);
       throw error;
@@ -87,32 +89,41 @@ const useAPIActions = () => {
     if (!userId) return;
     setIsRefreshing(true);
     try {
-      // Logic from your web version to fetch all data in parallel
-      const [tasksRes, pjpsRes, dealersRes, /* ... other requests */] = await Promise.allSettled([
+      // 1) fetch user record first and set into store
+      const userResp = await apiCall(`/api/users/${userId}`);
+      if (userResp?.data) {
+        setUser(userResp.data); // IMPORTANT: this avoids the infinite loading
+      }
+
+      // 2) run other requests in parallel (non-blocking)
+      const [
+        tasksRes, pjpsRes, dealersRes, // add other requests here
+      ] = await Promise.allSettled([
         apiCall(`/api/daily-tasks/user/${userId}`),
         apiCall(`/api/pjp/user/${userId}`),
         apiCall(`/api/dealers/user/${userId}`),
-        // Add all other API calls here
+        // ... add more endpoints as required
       ]);
 
-      // Process and set data in the Zustand store
       if (tasksRes.status === 'fulfilled') setData('dailyTasks', tasksRes.value.data || []);
       if (pjpsRes.status === 'fulfilled') setData('pjps', pjpsRes.value.data || []);
       if (dealersRes.status === 'fulfilled') setData('dealers', dealersRes.value.data || []);
 
+      // consider fetching attendance/dashboard stats similarly
       Toast.show({ type: 'success', text1: 'Data Synced' });
-    } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Connection Error', text2: error.message });
+    } catch (err: any) {
+      console.warn('fetchAllData error', err);
+      Toast.show({ type: 'error', text1: 'Connection Error', text2: err.message });
     } finally {
       setIsRefreshing(false);
     }
-  }, [apiCall, setData]);
+  }, [apiCall, setData, setUser]);
 
   const completeTask = useCallback(async (taskId: string) => {
     try {
       await apiCall(`/api/daily-tasks/${taskId}`, {
         method: 'PUT',
-        body: JSON.stringify({ status: 'Completed', completedAt: new Date().toISOString() })
+        body: JSON.stringify({ status: 'Completed', completedAt: new Date().toISOString() }),
       });
       Toast.show({ type: 'success', text1: 'Task Completed' });
       if (user?.id) await fetchAllData(String(user.id));
@@ -123,7 +134,6 @@ const useAPIActions = () => {
 
   return { fetchAllData, completeTask, isRefreshing, user };
 };
-
 
 // 2. TaskCard Component (Recreated for React Native)
 const TaskCard = ({ task, onComplete, onDelete }: TaskCardProps) => {
@@ -207,6 +217,11 @@ export default function HomeScreen() {
   const [openIn, setOpenIn] = useState(false);
   const [openOut, setOpenOut] = useState(false);
 
+  // company info state
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [companyLogoUri, setCompanyLogoUri] = useState<string | null>(null);
+  const [companyLoading, setCompanyLoading] = useState(false);
+
   const [index, setIndex] = useState(0);
   const [routes] = useState([
     { key: 'today', title: 'Today' },
@@ -219,14 +234,45 @@ export default function HomeScreen() {
   useEffect(() => {
     const initializeApp = async () => {
       const storedUserId = await AsyncStorage.getItem("userId");
-      if (storedUserId && !user) {
-        await fetchAllData(storedUserId);
-      } else if (!storedUserId) {
+      if (!storedUserId) {
         navigation.replace('Login');
+        return;
       }
+      // fetchAllData will fetch the user and other data and call setUser
+      await fetchAllData(storedUserId);
     };
     initializeApp();
-  }, []);
+  }, [fetchAllData, navigation]);
+
+
+  // Fetch user's company name once user is available
+  useEffect(() => {
+    let mounted = true;
+    const loadCompany = async () => {
+      if (!user?.id) return;
+      setCompanyLoading(true);
+      try {
+        const comp = await fetchCompanyByUserId(Number(user.id));
+        if (!mounted) return;
+        if (comp) {
+          setCompanyName(comp.companyName ?? null);
+          // load LOGO here
+          setCompanyLogoUri(Image.resolveAssetSource(companyLogo).uri);
+        } else {
+          setCompanyName(null);
+          setCompanyLogoUri(null);
+        }
+      } catch (err) {
+        console.warn('Could not fetch company for user:', err);
+        setCompanyName(null);
+        setCompanyLogoUri(null);
+      } finally {
+        if (mounted) setCompanyLoading(false);
+      }
+    };
+    loadCompany();
+    return () => { mounted = false; };
+  }, [user]);
 
   const handleLogout = async () => { /* ... (same as before) ... */ };
   const onRefresh = useCallback(() => { if (user?.id) fetchAllData(String(user.id)); }, [user, fetchAllData]);
@@ -247,13 +293,51 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        {/* Header (same as before) */}
+        {/* -------- Company Row (fixed at top, above user header) -------- */}
+        <View className="px-4 py-3 bg-white border-b border-gray-200 flex-row items-center">
+          <View className="flex-row items-center gap-3">
+            {/* Round company logo placeholder (will be a round image when you provide one) */}
+            {companyLoading ? (
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="small" />
+              </View>
+            ) : companyLogoUri ? (
+              <Image
+                source={{ uri: companyLogoUri }}
+                style={{ width: 56, height: 56, borderRadius: 28, resizeMode: 'cover', backgroundColor: '#f3f4f6' }}
+              />
+            ) : (
+              // fallback placeholder (round)
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="domain" size={24} color="#475569" />
+              </View>
+            )}
+
+            <View>
+              <Text variant="titleSmall" className="font-semibold">
+                {companyName ?? 'Your Company'}
+              </Text>
+              <Text variant="bodySmall" className="text-gray-500">
+                {companyName ? 'Company' : 'No company assigned'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Header with user's greeting and role */}
         <View className="flex-row items-center justify-between px-4 py-3">
           <View className="flex-row items-center gap-3">
             <Avatar.Text size={44} label={initials} className="bg-blue-600" />
-            <View><Text variant="bodySmall" className="text-gray-500">Welcome back,</Text><Text variant="titleMedium" className="font-bold">{user?.firstName}</Text></View>
+            <View>
+              <Text variant="bodySmall" className="text-gray-500">Hello,</Text>
+              <Text variant="titleMedium" className="font-bold">{user?.firstName} {user?.lastName}</Text>
+              <Text variant="bodySmall" className="text-gray-500">{user?.role}</Text>
+            </View>
           </View>
-          <View className="flex-row items-center"><IconButton icon="bell-outline" size={24} /><IconButton icon="logout" size={24} onPress={handleLogout} /></View>
+          <View className="flex-row items-center">
+            <IconButton icon="bell-outline" size={24} />
+            <IconButton icon="logout" size={24} onPress={handleLogout} />
+          </View>
         </View>
 
         {/* --- 1. Attendance Card (New Prominent Location) --- */}

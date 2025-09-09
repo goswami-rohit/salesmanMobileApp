@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { BASE_URL } from '../../components/ReusableConstants';
 
 // --- Schema (Corrected) ---
 const LeaveSchema = z.object({
@@ -78,7 +79,7 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
         endDate: values.endDate.toISOString().split('T')[0],
       };
       
-      const response = await fetch("YOUR_API_ENDPOINT/api/leave-applications", { // <-- Make sure to use your actual API endpoint
+    const response = await fetch(`${BASE_URL}/api/leave-applications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(leavePayload),

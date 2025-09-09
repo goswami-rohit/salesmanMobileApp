@@ -1,4 +1,4 @@
-//  server/src/routes/postRoutes/dailyVisitReports.ts 
+//  server/src/routes/postRoutes/dvr.ts 
 // Daily Visit Reports POST endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

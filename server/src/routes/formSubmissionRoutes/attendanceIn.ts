@@ -48,7 +48,7 @@ export default function setupAttendanceInPostRoutes(app: Express) {
         userId,
         attendanceDate,
         locationName,
-        inTimeTimestamp: new Date().toISOString(),
+        inTimeTimestamp: new Date(),
         outTimeTimestamp: null,
         inTimeImageCaptured: inTimeImageCaptured || false,
         outTimeImageCaptured: false,
@@ -66,8 +66,8 @@ export default function setupAttendanceInPostRoutes(app: Express) {
         outTimeSpeed: null,
         outTimeHeading: null,
         outTimeAltitude: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       const [newAttendance] = await db

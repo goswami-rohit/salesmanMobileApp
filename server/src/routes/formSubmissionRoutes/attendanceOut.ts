@@ -45,7 +45,7 @@ export default function setupAttendanceOutPostRoutes(app: Express) {
       }
 
       const updateData = {
-        outTimeTimestamp: new Date().toISOString(),
+        outTimeTimestamp: new Date(),
         outTimeImageCaptured: outTimeImageCaptured || false,
         outTimeImageUrl: outTimeImageUrl || null,
         outTimeLatitude: outTimeLatitude || null,
@@ -54,7 +54,7 @@ export default function setupAttendanceOutPostRoutes(app: Express) {
         outTimeSpeed: outTimeSpeed || null,
         outTimeHeading: outTimeHeading || null,
         outTimeAltitude: outTimeAltitude || null,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date()
       };
 
       const [updatedAttendance] = await db
