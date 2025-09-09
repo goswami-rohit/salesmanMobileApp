@@ -1,8 +1,9 @@
 // src/server/index.ts
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import path from 'path';
 import dotenv from 'dotenv';
-
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 // --- Import ALL your API route setups ---
 import setupAuthRoutes from '../routes/auth';  // NEW
 import setupUsersRoutes from '../routes/users'; // NEW
@@ -59,7 +60,10 @@ import setupAttendanceCheckInRoutes from '../routes/formSubmissionRoutes/attenda
 import setupAttendanceCheckOutRoutes from '../routes/formSubmissionRoutes/attendanceOut';
 
 // Initialize environment variables
-dotenv.config();
+
+// ADD THIS DEBUG LINE:
+console.log('DATABASE_URL loaded:', process.env.DATABASE_URL ? 'YES' : 'NO');
+console.log('DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
 
 // --- Server Setup ---
 const app: Express = express();
