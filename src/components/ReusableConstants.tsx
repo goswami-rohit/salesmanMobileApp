@@ -1,11 +1,10 @@
 // src/components/ReusableConstants.tsx
 import React from 'react';
-import { View, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { Card, Text, Chip, Button, IconButton } from 'react-native-paper';
+import { View } from 'react-native';
+import { NavigatorScreenParams } from '@react-navigation/native';
+import { Card, Text, } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { create } from 'zustand';
-import RNPickerSelect from 'react-native-picker-select';
-// Reusable constants in forms
 
 // --- STATE MANAGEMENT (Zustand) & INTERFACES ---
 // No changes are needed here. Zustand works perfectly in React Native.
@@ -168,6 +167,38 @@ export const StatTile = ({ iconName, value, label, tint }: { iconName: string; v
     </View>
   </Card>
 );
+
+// 1. Types for the screens within the Bottom Tab Navigator
+export type MainTabsParamList = {
+  Home: undefined;
+  Journey: undefined;
+  AIChat: undefined;
+  Profile: undefined;
+};
+
+// 2. Types for the Stack Navigator that lives inside the Drawer.
+// It includes the Bottom Tabs and all the individual form screens.
+export type DrawerStackParamList = {
+  MainTabs: NavigatorScreenParams<MainTabsParamList>;
+  AddDealerForm: undefined;
+  CompetitionReportForm: undefined;
+  DVRForm: undefined;
+  LeaveApplicationForm: undefined;
+  AddPJPForm: undefined;
+  SalesOrderForm: undefined;
+  TVRForm: undefined;
+  // These forms receive params, but they are opened in modals, not via direct navigation,
+  // so we don't need to define params here. They are handled by the component's own props.
+  AttendanceInForm: undefined; 
+  AttendanceOutForm: undefined;
+};
+
+// 3. Types for the main App-level Stack Navigator.
+// It handles the top-level flow between Login and the main app (the Drawer).
+export type AppStackParamList = {
+  Login: { onLoginSuccess: () => void };
+  AppDrawer: NavigatorScreenParams<DrawerStackParamList>;
+};
 
 export const DEALER_TYPES = ["Dealer-Best", "Sub Dealer-Best", "Dealer-Non Best", "Sub Dealer-Non Best",] as const;
 export const BRANDS = ["Star", "Amrit", "Dalmia", "Topcem", "Black Tiger", "Surya Gold", "Max", "Taj", "Specify in remarks"];

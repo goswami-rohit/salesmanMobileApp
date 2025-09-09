@@ -1,136 +1,88 @@
 // src/pages/forms/AttendanceInForm.tsx
-import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Image, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Image, Alert, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, ActivityIndicator, useTheme } from 'react-native-paper';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Text, Button, ActivityIndicator } from 'react-native-paper';
 import * as ImagePicker from "expo-image-picker";
 import * as Location from 'expo-location';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Toast from 'react-native-toast-message';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
 import AppHeader from '../../components/AppHeader';
 
-// Define the navigation props type for type safety
-type RootStackParamList = {
-  Home: { checkedIn: boolean };
-};
-type NavigationProps = NativeStackNavigationProp<RootStackParamList>;
-type UserLite = { id: number };
-
+// --- Type Definitions ---
+type Step = 'camera' | 'location' | 'loading';
 interface AttendanceInFormProps {
   userId: number;
   onSubmitted: () => void;
   onCancel: () => void;
 }
 
+// --- Component ---
 export default function AttendanceInForm({ userId, onSubmitted, onCancel }: AttendanceInFormProps) {
-  const navigation = useNavigation<NavigationProps>();
-  const theme = useTheme();
-  const cameraRef = useRef<CameraView>(null);
-
-  // In a real app, user would come from a global state/context
-  const [currentUser] = useState<UserLite>({ id: 1 });
-
-  const [step, setStep] = useState<'camera' | 'location' | 'loading'>('loading');
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-
+  const [step, setStep] = useState<Step>('loading');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const requestPermissions = async () => {
-      // Use ImagePicker permission since we open the native camera activity
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'You need to grant camera access to check in.');
-        navigation.goBack();
+        Alert.alert('Permission Required', 'You need to grant camera access to check in.', [
+          { text: 'OK', onPress: onCancel }
+        ]);
         return;
       }
       setStep('camera');
     };
     requestPermissions();
-  }, []);
+  }, [onCancel]);
 
   const takePicture = async () => {
-    console.log("[AttendanceIn] takePicture (ImagePicker-first) called. step:", step);
-
-    // Prevent duplicate captures
-    if ((takePicture as any).inProgress) {
-      console.warn("[AttendanceIn] capture already in progress");
-      return;
-    }
-    (takePicture as any).inProgress = true;
+    // This is a simple guard to prevent rapid, accidental double-taps.
+    if (step === 'loading') return;
 
     try {
       setStep("loading");
-
-      // 1) Request ImagePicker camera permission (handles runtime permission on Android)
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      console.log("[AttendanceIn] ImagePicker permission:", perm.status);
-      if (perm.status !== "granted") {
-        Alert.alert("Permission required", "Camera permission is required to take photos.");
-        setStep("camera");
-        (takePicture as any).inProgress = false;
-        return;
-      }
-
-      // 2) Launch ImagePicker camera UI (user-friendly fallback that works on most devices)
       const result = await ImagePicker.launchCameraAsync({
         quality: 0.7,
         allowsEditing: false,
         exif: false,
       });
-      //console.log("[AttendanceIn] ImagePicker result:", result);
 
-      // ImagePicker result shape: { canceled: boolean, assets?: [{ uri, ... }] }
-      if (!result || result.canceled || !result.assets || result.assets.length === 0) {
-        console.log("[AttendanceIn] no photo taken or cancelled");
+      if (result.canceled || !result.assets || result.assets.length === 0) {
         setStep("camera");
-        (takePicture as any).inProgress = false;
         return;
       }
 
       const pickedUri = result.assets[0].uri;
       setPhotoUri(pickedUri);
-      //console.log("[AttendanceIn] pickedUri:", pickedUri);
-
-      // 3) proceed to location step (your existing fetchLocation handles it)
+      
+      // Proceed to location step
       await fetchLocation();
 
-      (takePicture as any).inProgress = false;
-      return;
     } catch (err) {
-      console.error("[AttendanceIn] ImagePicker primary capture error:", err);
-      // As a secondary fallback we could try expo-camera here, but skip for now to keep UX reliable
-      Alert.alert("Error", "Could not capture photo. Try again.");
+      console.error("ImagePicker capture error:", err);
+      Alert.alert("Error", "Could not capture photo. Please try again.");
       setStep("camera");
-      (takePicture as any).inProgress = false;
-      return;
     }
   };
 
   const fetchLocation = async () => {
     try {
-      console.log('[AttendanceIn] requesting location permission');
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        // try again once (keeps behavior similar to your previous implementation)
-        const response = await Location.requestForegroundPermissionsAsync();
-        if (response.status !== 'granted') {
-          Alert.alert('Permission required', 'You need to grant location access to check in.');
-          setStep('camera');
-          return;
-        }
+        throw new Error('You need to grant location access to check in.');
       }
 
       const currentLocation = await Location.getCurrentPositionAsync({});
       setLocation(currentLocation);
       setStep('location');
-    } catch (err) {
-      console.error('[AttendanceIn] fetchLocation error', err);
-      Alert.alert('Error', 'Unable to fetch location. Please try again.');
-      setStep('camera');
+    } catch (err: any) {
+      console.error('fetchLocation error', err);
+      Alert.alert('Error', err.message || 'Unable to fetch location. Please try again.');
+      setStep('camera'); // Revert to camera step on failure
     }
   };
 
@@ -140,69 +92,63 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
     }
     setIsSubmitting(true);
 
-    /*
-    // --- IMAGE UPLOAD LOGIC (COMMENTED OUT) ---
-    // In a real app, you would first upload the image to a service (like R2/S3)
-    // and get back a public URL to store in your database.
-    // This function would likely live in your apiService.ts file.
-    // const inTimeImageUrl = await uploadImage(photoUri, 'attendance-in');
-    */
+    // FormData is required for sending images
+    const formData = new FormData();
 
-    const attendancePayload = {
-      userId: currentUser.id,
-      attendanceDate: new Date().toISOString().split('T')[0],
-      locationName: `Lat ${location.coords.latitude.toFixed(5)}, Lon ${location.coords.longitude.toFixed(5)}`,
-      inTimeTimestamp: new Date(location.timestamp).toISOString(),
-      inTimeImageCaptured: true,
-      inTimeImageUrl: photoUri, // Replace with inTimeImageUrl from upload service
-      inTimeLatitude: location.coords.latitude,
-      inTimeLongitude: location.coords.longitude,
-      inTimeAccuracy: location.coords.accuracy,
-    };
+    formData.append('userId', String(userId));
+    formData.append('attendanceDate', new Date().toISOString().split('T')[0]);
+    formData.append('locationName', `Lat ${location.coords.latitude.toFixed(5)}, Lon ${location.coords.longitude.toFixed(5)}`);
+    formData.append('inTimeTimestamp', new Date(location.timestamp).toISOString());
+    formData.append('inTimeImageCaptured', 'true');
+    formData.append('inTimeLatitude', String(location.coords.latitude));
+    formData.append('inTimeLongitude', String(location.coords.longitude));
+    formData.append('inTimeAccuracy', String(location.coords.accuracy));
+    
+    // Append the image file
+    formData.append('inTimeImage', {
+        uri: photoUri,
+        name: 'checkin.jpg',
+        type: 'image/jpeg',
+    } as any);
 
-    // Call the central API service function
-    const result = await createAttendanceIn(attendancePayload) as { success: boolean };
-    setIsSubmitting(false);
+    try {
+        const response = await fetch('YOUR_API_ENDPOINT/api/attendance/in', {
+            method: 'POST',
+            headers: { 'Content-Type': 'multipart/form-data' },
+            body: formData,
+        });
 
-    if (result.success) {
-      Alert.alert('Success', 'You have been successfully checked in.');
-      navigation.navigate('Home', { checkedIn: true });
-    } else {
-      Alert.alert('Error', 'Failed to check in.');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Failed to check in.');
+
+        Toast.show({type: 'success', text1: 'Checked In Successfully!'});
+        onSubmitted();
+    } catch (error: any) {
+        Alert.alert('Submission Failed', error.message);
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
   const renderContent = () => {
-    if (step === 'loading' || !cameraPermission?.granted) {
+    if (step === 'loading') {
       return <ActivityIndicator animating={true} size="large" />;
     }
 
     if (step === 'camera') {
       return (
         <>
-          <Text variant="headlineSmall" style={styles.title}>Selfie Capture</Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
+          <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-2">Selfie Capture</Text>
+          <Text variant="bodyMedium" className="text-slate-400 text-center mb-6">
             Please take a clear selfie to mark your attendance.
           </Text>
-
-          {/* SHOW PREVIEW IF A PHOTO WAS ALREADY TAKEN; OTHERWISE SHOW A PLACEHOLDER */}
-          <View style={styles.cameraContainer}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.camera} />
-            ) : (
-              // simple centered placeholder circle
-              <View style={{
-                flex: 1,
-                backgroundColor: '#071024',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Text style={{ color: '#9ca3af' }}>Tap Capture to open phone camera</Text>
+          <View className="w-72 h-72 rounded-full bg-slate-800 border-2 border-slate-700 justify-center items-center overflow-hidden mb-6">
+              <View className="flex-1 bg-slate-800 items-center justify-center">
+                <Icon name="camera" size={64} color="#64748b" />
+                <Text className="text-slate-500 mt-2">Tap below to open camera</Text>
               </View>
-            )}
           </View>
-
-          <Button mode="contained" icon="camera" onPress={takePicture} style={styles.button}>
+          <Button mode="contained" icon="camera" onPress={takePicture} className="w-full p-1">
             Capture & Continue
           </Button>
         </>
@@ -212,18 +158,16 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
     if (step === 'location' && photoUri && location) {
       return (
         <>
-          <Text variant="headlineSmall" style={styles.title}>Confirm Details</Text>
-          <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-          <Text style={styles.locationText}>
-            Location Captured:
-          </Text>
-          <Text style={styles.locationCoords}>
+          <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-4">Confirm Details</Text>
+          <Image source={{ uri: photoUri }} className="w-48 h-48 rounded-full mb-6 border-2 border-slate-700" />
+          <Text className="text-slate-400 text-base mb-2">Location Captured:</Text>
+          <Text className="text-slate-200 text-base mb-6 font-semibold">
             Lat: {location.coords.latitude.toFixed(5)}, Lon: {location.coords.longitude.toFixed(5)}
           </Text>
           <Button
             mode="contained"
             onPress={handleSubmit}
-            style={styles.button}
+            className="w-full p-1"
             loading={isSubmitting}
             disabled={isSubmitting}
           >
@@ -233,44 +177,21 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
       );
     }
 
-    return <Text style={{ color: theme.colors.error }}>Something went wrong. Please try again.</Text>;
+    // Fallback view in case of an unexpected state
+    return <Text className="text-red-500">Something went wrong. Please cancel and try again.</Text>;
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
-      <AppHeader title="Attendance Check-in" />
-      <View style={styles.container}>
+    <View className="flex-1 p-4 items-center justify-center bg-slate-900">
         {renderContent()}
-      </View>
-    </SafeAreaView>
+        <Button 
+            onPress={onCancel} 
+            disabled={isSubmitting} 
+            className="absolute bottom-6"
+            textColor="gray"
+        >
+            Cancel
+        </Button>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0f172a" },
-  container: { flex: 1, padding: 16, alignItems: 'center', justifyContent: 'center' },
-  title: { color: "#e5e7eb", marginBottom: 4, fontWeight: 'bold', textAlign: 'center' },
-  subtitle: { color: '#9ca3af', marginBottom: 24, textAlign: 'center' },
-  cameraContainer: {
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    overflow: 'hidden',
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: '#334155'
-  },
-  camera: { flex: 1 },
-  photoPreview: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: '#334155'
-  },
-  locationText: { color: '#9ca3af', fontSize: 16, marginBottom: 8 },
-  locationCoords: { color: '#e5e7eb', fontSize: 16, marginBottom: 24, fontWeight: '600' },
-  button: { marginTop: 8, paddingVertical: 4, width: '100%' }
-});
-

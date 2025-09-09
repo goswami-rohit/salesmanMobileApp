@@ -15,11 +15,11 @@ import LeaveApplicationForm from "../pages/forms/LeaveApplicationForm";
 import PJPForm from "../pages/forms/AddPJPForm"; 
 import SalesOrderForm from "../pages/forms/SalesOrderForm";
 import TVRForm from "../pages/forms/TVRForm";
-import AttendanceInForm from "../pages/forms/AttendanceInForm";
-import AttendanceOutForm from "../pages/forms/AttendanceOutForm";
+
+import { DrawerStackParamList } from "../components/ReusableConstants";
 
 const Drawer = createDrawerNavigator();
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<DrawerStackParamList>();
 
 // This Stack Navigator is the parent that contains BOTH the main tabs and all the forms.
 // This allows navigation between them.
@@ -36,8 +36,7 @@ function RootStack() {
             <Stack.Screen name="AddPJPForm" component={PJPForm} />
             <Stack.Screen name="SalesOrderForm" component={SalesOrderForm} />
             <Stack.Screen name="TVRForm" component={TVRForm} />
-            <Stack.Screen name="AttendanceInForm" component={AttendanceInForm} />
-            <Stack.Screen name="AttendanceOutForm" component={AttendanceOutForm} />
+            {/*.   ATTENDANCE FORMS ARE SHOWN IN MODALS NOT REQUIRED HERE    */}
         </Stack.Navigator>
     );
 }

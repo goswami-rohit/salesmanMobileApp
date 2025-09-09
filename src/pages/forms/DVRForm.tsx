@@ -1,67 +1,76 @@
 // src/pages/forms/DVRForm.tsx
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Image, Alert, ScrollView, TouchableOpacity } from 'react-native';
+import { ScrollView, View, TouchableOpacity, PermissionsAndroid, Platform, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, ActivityIndicator, TextInput, useTheme, Menu, Modal, Portal, Checkbox, Avatar } from 'react-native-paper';
-import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
+import { Text, Button, TextInput, HelperText, ActivityIndicator, Modal, Portal, Checkbox, Avatar } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useForm, Controller, Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import RNPickerSelect from 'react-native-picker-select';
+import * as ImagePicker from 'expo-image-picker';
+import Geolocation from 'react-native-geolocation-service';
+import Toast from 'react-native-toast-message';
+
+import { useAppStore, DEALER_TYPES, BRANDS, FEEDBACKS } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
-import { DEALER_TYPES, BRANDS, FEEDBACKS } from '../../components/ReusableConstants';
-import { createDvr } from '../../backendConnections/apiServices'; // Import the service function
 
+// --- Type Definitions ---
 type Step = 'checkin' | 'form' | 'checkout' | 'loading';
-type UserLite = { id: number };
 
+// --- Zod Schema ---
+const DVReportSchema = z.object({
+  userId: z.number(),
+  reportDate: z.string(),
+  dealerType: z.string().min(1, "Dealer type is required"),
+  dealerName: z.string().min(1, "Dealer name is required"),
+  subDealerName: z.string().optional(),
+  location: z.string().min(1, "Location is required"),
+  latitude: z.number(),
+  longitude: z.number(),
+  visitType: z.string().min(1, "Visit type is required"),
+  dealerTotalPotential: z.coerce.number().optional(),
+  dealerBestPotential: z.coerce.number().optional(),
+  brandSelling: z.string().array().min(1, "Select at least one brand"),
+  contactPerson: z.string().optional(),
+  contactPersonPhoneNo: z.string().optional(),
+  todayOrderMt: z.coerce.number().optional(),
+  todayCollectionRupees: z.coerce.number().optional(),
+  overdueAmount: z.coerce.number().optional(),
+  feedbacks: z.string().min(1, "Feedback is required"),
+  solutionBySalesperson: z.string().optional(),
+  anyRemarks: z.string().optional(),
+});
+type DVReportFormValues = z.infer<typeof DVReportSchema>;
+
+// --- Component ---
 export default function DVRForm() {
   const navigation = useNavigation();
-  const theme = useTheme();
+  const { user } = useAppStore();
 
-  // In a real app, user would come from a global state/context
-  const [currentUser] = useState<UserLite>({ id: 1 });
-
-  // --- State Management ---
   const [step, setStep] = useState<Step>('loading');
-
-  // Photos and Timestamps
   const [checkInPhotoUri, setCheckInPhotoUri] = useState<string | null>(null);
   const [checkOutPhotoUri, setCheckOutPhotoUri] = useState<string | null>(null);
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
-  const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
-
-  // Geolocation
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [geoBusy, setGeoBusy] = useState(false);
-
-  // Form Fields
-  const [reportDate, setReportDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dealerType, setDealerType] = useState('');
-  const [dealerName, setDealerName] = useState('');
-  const [subDealerName, setSubDealerName] = useState('');
-  const [locationName, setLocationName] = useState('');
-  const [visitType, setVisitType] = useState('');
-  const [dealerTotalPotential, setDealerTotalPotential] = useState('');
-  const [dealerBestPotential, setDealerBestPotential] = useState('');
-  const [brandSelling, setBrandSelling] = useState<string[]>([]);
-  const [contactPerson, setContactPerson] = useState('');
-  const [contactPersonPhoneNo, setContactPersonPhoneNo] = useState('');
-  const [todayOrderMt, setTodayOrderMt] = useState('');
-  const [todayCollectionRupees, setTodayCollectionRupees] = useState('');
-  const [overdueAmount, setOverdueAmount] = useState('');
-  const [feedbacks, setFeedbacks] = useState('');
-  const [solutionBySalesperson, setSolutionBySalesperson] = useState('');
-  const [anyRemarks, setAnyRemarks] = useState('');
-
-  // UI State
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dealerTypeMenuVisible, setDealerTypeMenuVisible] = useState(false);
-  const [feedbackMenuVisible, setFeedbackMenuVisible] = useState(false);
   const [brandsModalVisible, setBrandsModalVisible] = useState(false);
+  const [isGeoBusy, setIsGeoBusy] = useState(false);
 
-  // --- Permission Handling ---
+  // FIX: Added 'watch' to the destructuring
+  const { control, handleSubmit, setValue, trigger, watch, formState: { errors, isSubmitting } } = useForm<DVReportFormValues>({
+    resolver: zodResolver(DVReportSchema) as unknown as Resolver<DVReportFormValues, any>,
+    mode: 'onChange',
+    defaultValues: {
+      userId: user?.id,
+      reportDate: new Date().toISOString().slice(0, 10),
+      brandSelling: [],
+    },
+  });
+
+  const brandSelling = watch('brandSelling');
+
   useEffect(() => {
     const requestPerms = async () => {
-      // Use ImagePicker permission because we launch native camera intent
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Camera access is required.');
@@ -71,202 +80,118 @@ export default function DVRForm() {
       setStep('checkin');
     };
     requestPerms();
-  }, []);
+  }, [navigation]);
 
-  // --- Core Logic Functions ---
-
-  /**
-   * Capture handler now uses ImagePicker (native camera intent) for reliability.
-   * Works for both checkin and checkout steps.
-   */
   const handleCapture = async () => {
-    console.log('[DVR] handleCapture called. step=', step);
-
-    if ((handleCapture as any).inProgress) {
-      console.warn('[DVR] capture already in progress');
-      return;
-    }
-    (handleCapture as any).inProgress = true;
-
     const currentStep = step;
+    setStep('loading');
     try {
-      setStep('loading');
-
-      // Ensure permission (defensive)
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      console.log('[DVR] ImagePicker permission ->', perm.status);
-      if (perm.status !== 'granted') {
-        Alert.alert('Permission required', 'Camera permission is required to take photos.');
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+      if (result.canceled || !result.assets || result.assets.length === 0) {
         setStep(currentStep);
-        (handleCapture as any).inProgress = false;
         return;
       }
-
-      // small stabilization delay
-      await new Promise((r) => setTimeout(r, 120));
-
-      // Launch native camera
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.7,
-        allowsEditing: false,
-        exif: false,
-      });
-      //console.log('[DVR] ImagePicker result ->', result);
-
-      if (!result || result.canceled || !result.assets || result.assets.length === 0) {
-        console.log('[DVR] no photo taken or cancelled');
-        setStep(currentStep);
-        (handleCapture as any).inProgress = false;
-        return;
-      }
-
       const pickedUri = result.assets[0].uri;
-      //console.log('[DVR] pickedUri ->', pickedUri);
 
       if (currentStep === 'checkin') {
         setCheckInPhotoUri(pickedUri);
         setCheckInTime(new Date().toISOString());
-        // proceed to form
         setStep('form');
       } else if (currentStep === 'checkout') {
         setCheckOutPhotoUri(pickedUri);
-        setCheckOutTime(new Date().toISOString());
-        // call submit with final photo uri
-        await handleSubmit(pickedUri);
-      } else {
-        setStep('checkin');
+        await handleSubmit(submit)(); 
       }
-
-      (handleCapture as any).inProgress = false;
     } catch (err) {
-      console.error('[DVR] handleCapture error', err);
-      Alert.alert('Error', 'Could not capture photo. Please try again.');
-      setStep(currentStep === 'loading' ? 'checkin' : currentStep);
-      (handleCapture as any).inProgress = false;
+      console.error('handleCapture error', err);
+      Alert.alert('Error', 'Could not capture photo.');
+      setStep(currentStep);
     }
   };
 
   const useMyLocation = async () => {
-    setGeoBusy(true);
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Location access is required.');
-      setGeoBusy(false);
+    setIsGeoBusy(true);
+    try {
+        if (Platform.OS === 'android') {
+            const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+            if (granted !== 'granted') throw new Error('Location permission denied');
+        }
+        Geolocation.getCurrentPosition(
+            (pos) => {
+                const { latitude, longitude } = pos.coords;
+                setValue('latitude', latitude, { shouldValidate: true });
+                setValue('longitude', longitude, { shouldValidate: true });
+                setValue('location', `Lat ${latitude.toFixed(5)}, Lon ${longitude.toFixed(5)}`, { shouldValidate: true });
+                Toast.show({ type: 'success', text1: 'Location Captured' });
+                setIsGeoBusy(false);
+            },
+            (error) => { throw error; },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+        );
+    } catch (err: any) {
+        Alert.alert('Error', err.message || 'Could not fetch location.');
+        setIsGeoBusy(false);
+    }
+  };
+
+  const handleProceedToCheckout = async () => {
+    const isValid = await trigger();
+    if (isValid) {
+      setStep('checkout');
+    } else {
+      Toast.show({ type: 'error', text1: 'Validation Error', text2: 'Please fill all required fields correctly.' });
+    }
+  };
+
+  const submit = async (data: DVReportFormValues) => {
+    if (!checkInPhotoUri || !checkOutPhotoUri) {
+      Alert.alert('Error', 'Check-in or Check-out photo is missing.');
+      setStep('checkout');
       return;
     }
-    try {
-      const loc = await Location.getCurrentPositionAsync({});
-      setLocation(loc);
-      setLocationName(`Lat ${loc.coords.latitude.toFixed(5)}, Lon ${loc.coords.longitude.toFixed(5)}`);
-    } catch (error) {
-      Alert.alert('Error', 'Could not fetch location.');
-    } finally {
-      setGeoBusy(false);
-    }
-  };
 
-  const validate = (): string | null => {
-    if (!dealerType || !dealerName || !locationName || !visitType || !feedbacks) {
-      return "Please fill all required fields.";
-    }
-    if (brandSelling.length === 0) {
-      return "Please select at least one brand.";
-    }
-    return null;
-  };
-
-  const handleProceedToCheckout = () => {
-    const error = validate();
-    if (error) {
-      return Alert.alert("Validation Error", error);
-    }
-    setStep('checkout');
-  };
-
-  const handleSubmit = async (finalPhotoUri?: string) => {
-    try {
-      setIsSubmitting(true);
-      const dvrPayload = {
-        userId: currentUser.id,
-        reportDate, dealerType, dealerName, subDealerName,
-        location: locationName,
-        latitude: location?.coords.latitude,
-        longitude: location?.coords.longitude,
-        visitType,
-        dealerTotalPotential: Number(dealerTotalPotential) || 0,
-        dealerBestPotential: Number(dealerBestPotential) || 0,
-        brandSelling, contactPerson, contactPersonPhoneNo,
-        todayOrderMt: Number(todayOrderMt) || 0,
-        todayCollectionRupees: Number(todayCollectionRupees) || 0,
-        overdueAmount: Number(overdueAmount) || 0,
-        feedbacks, solutionBySalesperson, anyRemarks,
-        checkInTime, checkOutTime,
-        inTimeImageUrl: checkInPhotoUri, // Replace with uploaded URL in real app
-        outTimeImageUrl: finalPhotoUri, // Replace with uploaded URL in real app
-      };
-      const result = await createDvr(dvrPayload) as { success: boolean };
-      setIsSubmitting(false);
-      if (result.success) {
-        Alert.alert('Success', 'DVR has been submitted successfully.');
-        navigation.goBack();
-      } else {
-        Alert.alert('Error', 'Failed to submit DVR.');
-        // if submission failed, let user try checkout photo again
-        setStep('checkout');
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value));
       }
-    } catch (err) {
-      console.error('[DVR] submit error', err);
-      setIsSubmitting(false);
-      Alert.alert('Error', 'An unexpected error occurred while submitting DVR.');
+    });
+    formData.append('checkInTime', checkInTime!);
+    formData.append('checkOutTime', new Date().toISOString());
+    formData.append('inTimeImage', { uri: checkInPhotoUri, name: 'checkin.jpg', type: 'image/jpeg' } as any);
+    formData.append('outTimeImage', { uri: checkOutPhotoUri, name: 'checkout.jpg', type: 'image/jpeg' } as any);
+
+    try {
+      const response = await fetch('YOUR_API_ENDPOINT/api/dvr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'multipart/form-data' },
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to submit report.');
+      Toast.show({ type: 'success', text1: 'DVR Submitted Successfully' });
+      navigation.goBack();
+    } catch (error: any) {
+      Alert.alert('Submission Failed', error.message);
       setStep('checkout');
     }
   };
 
-  // --- UI Rendering ---
-  const textInputTheme = {
-    colors: {
-      primary: theme.colors.primary, text: '#e5e7eb', placeholder: '#9ca3af',
-      background: '#1e293b', outline: '#475569',
-    },
-  };
-
-  const handleBrandToggle = (brand: string) => {
-    setBrandSelling(prev =>
-      prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]
-    );
-  };
-
   const renderContent = () => {
-    if (step === 'loading') {
-      return <ActivityIndicator animating={true} size="large" />;
+    if (step === 'loading' || isSubmitting) {
+      return <View className="flex-1 justify-center items-center"><ActivityIndicator size="large" /></View>;
     }
-
+    
     if (step === 'checkin' || step === 'checkout') {
       const isCheckout = step === 'checkout';
+      const photoUri = isCheckout ? checkOutPhotoUri : checkInPhotoUri;
       return (
-        <View style={styles.cameraStepContainer}>
-          <Text variant="headlineSmall" style={styles.title}>{isCheckout ? 'Dealer Checkout' : 'Dealer Check-in'}</Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>Take a selfie to {isCheckout ? 'complete' : 'start'} the visit.</Text>
-
-          <View style={styles.cameraContainer}>
-            { (isCheckout ? checkOutPhotoUri : checkInPhotoUri) ? (
-              <Image source={{ uri: isCheckout ? checkOutPhotoUri! : checkInPhotoUri! }} style={styles.camera} />
-            ) : (
-              <View style={styles.placeholder}>
-                <Avatar.Icon size={96} icon="camera" />
-                <Text style={{ color: '#9ca3af', marginTop: 8 }}>Tap Capture to open phone camera</Text>
-              </View>
-            )}
+        <View className="flex-1 justify-center items-center p-4">
+          <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-2">{isCheckout ? 'Dealer Checkout' : 'Dealer Check-in'}</Text>
+          <Text variant="bodyMedium" className="text-slate-400 text-center mb-6">Take a selfie to {isCheckout ? 'complete' : 'start'} the visit.</Text>
+          <View className="w-64 h-64 rounded-full bg-slate-800 border-2 border-slate-700 justify-center items-center overflow-hidden mb-6">
+            {photoUri ? <Image source={{ uri: photoUri }} className="w-full h-full" /> : <Avatar.Icon size={96} icon="camera" className="bg-transparent" />}
           </View>
-
-          <Button
-            mode="contained"
-            icon={isCheckout ? 'camera-check' : 'camera'}
-            onPress={handleCapture}
-            style={styles.button}
-            loading={isSubmitting}
-            disabled={isSubmitting}
-          >
+          <Button mode="contained" icon={isCheckout ? 'camera-check' : 'camera'} onPress={handleCapture} className="w-full p-1">
             {isCheckout ? 'Capture & Submit DVR' : 'Capture & Continue'}
           </Button>
         </View>
@@ -276,153 +201,78 @@ export default function DVRForm() {
     if (step === 'form') {
       return (
         <>
-          <Portal>
-            <Modal visible={brandsModalVisible} onDismiss={() => setBrandsModalVisible(false)} contentContainerStyle={styles.modalContainer}>
-              <Text variant="titleLarge" style={styles.modalTitle}>Select Brands</Text>
+        {/* FIX: Added children to the Modal */}
+        <Portal>
+          <Modal visible={brandsModalVisible} onDismiss={() => setBrandsModalVisible(false)} contentContainerStyle={{backgroundColor: '#1e293b', padding: 20, margin: 20, borderRadius: 8}}>
+            <Text variant="titleLarge" className="text-slate-200 mb-2">Select Brands</Text>
+            <ScrollView>
               {BRANDS.map(brand => (
                 <Checkbox.Item
                   key={brand}
                   label={brand}
                   status={brandSelling.includes(brand) ? 'checked' : 'unchecked'}
-                  onPress={() => handleBrandToggle(brand)}
+                  onPress={() => {
+                    const newBrands = brandSelling.includes(brand) ? brandSelling.filter(b => b !== brand) : [...brandSelling, brand];
+                    setValue('brandSelling', newBrands, { shouldValidate: true });
+                  }}
                   labelStyle={{ color: '#e5e7eb' }}
-                  color={theme.colors.primary}
-                  uncheckedColor='#9ca3af'
                 />
               ))}
-              <Button onPress={() => setBrandsModalVisible(false)} style={{ marginTop: 10 }}>Done</Button>
-            </Modal>
-          </Portal>
+            </ScrollView>
+            <Button onPress={() => setBrandsModalVisible(false)} className="mt-4">Done</Button>
+          </Modal>
+        </Portal>
 
-          <ScrollView contentContainerStyle={styles.formContainer}>
-            <Text variant="headlineSmall" style={styles.title}>Visit Details</Text>
-            {checkInPhotoUri && <Image source={{ uri: checkInPhotoUri }} style={styles.photoPreview} />}
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-6">Visit Details</Text>
+          {checkInPhotoUri && <Image source={{ uri: checkInPhotoUri }} className="w-24 h-24 rounded-full self-center mb-6 border-2 border-slate-700" />}
 
-            <Menu
-              visible={dealerTypeMenuVisible}
-              onDismiss={() => setDealerTypeMenuVisible(false)}
-              anchor={
-                <TouchableOpacity onPress={() => setDealerTypeMenuVisible(true)}>
-                  <TextInput label="Dealer Type *" mode="outlined" value={dealerType} editable={false} style={styles.input} theme={textInputTheme} />
-                </TouchableOpacity>
-              }>
-              {DEALER_TYPES.map(type => <Menu.Item key={type} onPress={() => { setDealerType(type); setDealerTypeMenuVisible(false); }} title={type} />)}
-            </Menu>
+          <Controller control={control} name="dealerType" render={({ field: { onChange, value } }) => (
+            <View className="mb-4"><View className="p-3 bg-slate-800 rounded-lg border border-slate-600"><RNPickerSelect onValueChange={onChange} value={value} items={DEALER_TYPES.map(t => ({ label: t, value: t }))} placeholder={{ label: "Select Dealer Type *", value: null }} style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />} /></View>{errors.dealerType && <HelperText type="error" visible>{errors.dealerType?.message}</HelperText>}</View>
+          )} />
+          <Controller name="dealerName" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Dealer Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.dealerName} /><HelperText type="error" visible={!!errors.dealerName}>{errors.dealerName?.message}</HelperText></View> )} />
+          <Controller name="subDealerName" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Sub Dealer Name (Optional)" value={value} onChangeText={onChange} onBlur={onBlur} /></View> )} />
+          
+          <View className="flex-row items-center gap-4 mb-4">
+            <Controller name="location" control={control} render={({ field: { onChange, onBlur, value } }) => ( <TextInput label="Location *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.location} className="flex-1" /> )} />
+            <Button icon="crosshairs-gps" mode="contained-tonal" onPress={useMyLocation} loading={isGeoBusy}>Fetch</Button>
+          </View>
+          {errors.location && <HelperText type="error" visible className="-mt-4 mb-4">{errors.location?.message}</HelperText>}
+          
+          <Controller name="visitType" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Visit Type *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.visitType} /><HelperText type="error" visible={!!errors.visitType}>{errors.visitType?.message}</HelperText></View> )} />
+          <Controller name="dealerTotalPotential" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Dealer Total Potential (MT)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View> )} />
+          <Controller name="dealerBestPotential" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Dealer Best Potential (MT)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View> )} />
 
-            <TextInput label="Dealer Name *" mode="outlined" value={dealerName} onChangeText={setDealerName} style={styles.input} theme={textInputTheme} />
-            <TextInput label="Sub Dealer Name" mode="outlined" value={subDealerName} onChangeText={setSubDealerName} style={styles.input} theme={textInputTheme} />
+          <TouchableOpacity onPress={() => setBrandsModalVisible(true)} className="mb-4">
+            <TextInput label="Brands Selling *" editable={false} value={brandSelling.join(', ') || 'Select brands...'} error={!!errors.brandSelling} right={<TextInput.Icon icon="chevron-down" />} />
+            {errors.brandSelling && <HelperText type="error" visible>{errors.brandSelling?.message}</HelperText>}
+          </TouchableOpacity>
 
-            <View style={styles.locationContainer}>
-              <TextInput label="Location *" mode="outlined" value={locationName} onChangeText={setLocationName} style={[styles.input, { flex: 1 }]} theme={textInputTheme} />
-              <Button icon="crosshairs-gps" mode="contained" onPress={useMyLocation} style={styles.locationButton} loading={geoBusy} disabled={geoBusy}>
-                Fetch
-              </Button>
-            </View>
+          <Controller name="contactPerson" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Contact Person" value={value} onChangeText={onChange} onBlur={onBlur} /></View> )} />
+          <Controller name="contactPersonPhoneNo" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Contact Person Phone" value={value} onChangeText={onChange} onBlur={onBlur} keyboardType="phone-pad" /></View> )} />
+          <Controller name="todayOrderMt" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Today's Order (MT)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View> )} />
+          <Controller name="todayCollectionRupees" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Today's Collection (₹)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View> )} />
+          <Controller name="overdueAmount" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Overdue Amount (₹)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View> )} />
 
-            <TextInput label="Visit Type *" mode="outlined" value={visitType} onChangeText={setVisitType} style={styles.input} theme={textInputTheme} />
-            <TextInput label="Dealer Total Potential (MT)" keyboardType="numeric" mode="outlined" value={dealerTotalPotential} onChangeText={setDealerTotalPotential} style={styles.input} theme={textInputTheme} />
-            <TextInput label="Dealer Best Potential (MT)" keyboardType="numeric" mode="outlined" value={dealerBestPotential} onChangeText={setDealerBestPotential} style={styles.input} theme={textInputTheme} />
+          <Controller control={control} name="feedbacks" render={({ field: { onChange, value } }) => (
+            <View className="mb-4"><View className="p-3 bg-slate-800 rounded-lg border border-slate-600"><RNPickerSelect onValueChange={onChange} value={value} items={FEEDBACKS.map(f => ({ label: f, value: f }))} placeholder={{ label: "Select Feedback *", value: null }} style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />} /></View>{errors.feedbacks && <HelperText type="error" visible>{errors.feedbacks?.message}</HelperText>}</View>
+          )} />
+          
+          <Controller name="solutionBySalesperson" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Solution by Salesperson" value={value} onChangeText={onChange} onBlur={onBlur} multiline /></View> )} />
+          <Controller name="anyRemarks" control={control} render={({ field: { onChange, onBlur, value } }) => ( <View className="mb-4"><TextInput label="Any Remarks" value={value} onChangeText={onChange} onBlur={onBlur} multiline /></View> )} />
 
-            <TouchableOpacity onPress={() => setBrandsModalVisible(true)}>
-              <TextInput
-                label="Brands Selling *"
-                mode="outlined"
-                value={brandSelling.join(', ') || 'Select brands...'}
-                editable={false}
-                style={styles.input}
-                theme={textInputTheme}
-              />
-            </TouchableOpacity>
-
-            <TextInput label="Contact Person" mode="outlined" value={contactPerson} onChangeText={setContactPerson} style={styles.input} theme={textInputTheme} />
-            <TextInput label="Contact Person Phone" keyboardType="phone-pad" mode="outlined" value={contactPersonPhoneNo} onChangeText={setContactPersonPhoneNo} style={styles.input} theme={textInputTheme} />
-            <TextInput label="Today's Order (MT)" keyboardType="numeric" mode="outlined" value={todayOrderMt} onChangeText={setTodayOrderMt} style={styles.input} theme={textInputTheme} />
-            <TextInput label="Today's Collection (₹)" keyboardType="numeric" mode="outlined" value={todayCollectionRupees} onChangeText={setTodayCollectionRupees} style={styles.input} theme={textInputTheme} />
-            <TextInput label="Overdue Amount (₹)" keyboardType="numeric" mode="outlined" value={overdueAmount} onChangeText={setOverdueAmount} style={styles.input} theme={textInputTheme} />
-
-            <Menu
-              visible={feedbackMenuVisible}
-              onDismiss={() => setFeedbackMenuVisible(false)}
-              anchor={
-                <TouchableOpacity onPress={() => setFeedbackMenuVisible(true)}>
-                  <TextInput label="Feedback *" mode="outlined" value={feedbacks} editable={false} style={styles.input} theme={textInputTheme} />
-                </TouchableOpacity>
-              }>
-              {FEEDBACKS.map(fb => <Menu.Item key={fb} onPress={() => { setFeedbacks(fb); setFeedbackMenuVisible(false); }} title={fb} />)}
-            </Menu>
-
-            <TextInput label="Solution by Salesperson" mode="outlined" value={solutionBySalesperson} onChangeText={setSolutionBySalesperson} style={styles.input} multiline numberOfLines={3} theme={textInputTheme} />
-            <TextInput label="Any Remarks" mode="outlined" value={anyRemarks} onChangeText={setAnyRemarks} style={styles.input} multiline numberOfLines={3} theme={textInputTheme} />
-
-            <Button mode="contained" onPress={handleProceedToCheckout} style={styles.button}>
-              Continue to Checkout Photo
-            </Button>
-          </ScrollView>
+          <Button mode="contained" onPress={handleProceedToCheckout} className="mt-4 p-1">Continue to Checkout</Button>
+        </ScrollView>
         </>
       );
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <SafeAreaView className="flex-1 bg-slate-900" edges={['right', 'bottom', 'left']}>
       <AppHeader title="Daily Visit Report" />
-      <View style={styles.container}>
-        {renderContent()}
-      </View>
+      {renderContent()}
     </SafeAreaView>
   );
 }
 
-// --- Styles ---
-// --- Styles ---
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0f172a" },
-  container: { flex: 1, padding: 16 },
-  cameraStepContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
-  formContainer: { paddingTop: 16, paddingBottom: 32 },
-  title: {
-    color: "#e5e7eb",
-    marginBottom: 4,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  subtitle: {
-    color: "#9ca3af",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  cameraContainer: {
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    overflow: "hidden",
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: "#334155",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#071024",
-  },
-  placeholder: { alignItems: "center", justifyContent: "center" },
-  camera: { width: "100%", height: "100%" },
-  photoPreview: {
-    width: 100,
-    height: 100,
-    alignSelf: "center",
-    borderRadius: 50,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: "#334155",
-  },
-  input: { marginBottom: 16 },
-  button: { marginTop: 8, paddingVertical: 4, width: "100%" },
-  locationContainer: { flexDirection: "row", alignItems: "center", gap: 8 },
-  locationButton: { height: 55, justifyContent: "center", marginTop: -8 },
-  modalContainer: {
-    backgroundColor: "#1e293b",
-    padding: 20,
-    margin: 20,
-    borderRadius: 8,
-  },
-  modalTitle: { color: "#e5e7eb", marginBottom: 10 },
-});

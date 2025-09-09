@@ -1,27 +1,27 @@
 // src/pages/LoginScreen.tsx
 import React, { useState } from 'react';
-import { View, StatusBar } from 'react-native';
-import { 
-  TextInput, 
-  Button, 
-  Card, 
-  Text, 
-  HelperText, 
-  Avatar 
+import { View, StatusBar, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  TextInput,
+  Button,
+  Card,
+  Text,
+  HelperText,
+  Avatar,
+  useTheme
 } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-// It's good practice to type your navigation stack
-type RootStackParamList = {
-  Login: undefined;
-  CrmDashboard: undefined;
-};
+// --- FIX: Import the centralized navigation types ---
+import { AppStackParamList } from '../components/ReusableConstants'; 
 
-type LoginScreenProps = NativeStackScreenProps<RootStackParamList, 'Login'>;
+type LoginScreenProps = NativeStackScreenProps<AppStackParamList, 'Login'>;
 
-export default function LoginScreen({ navigation }: LoginScreenProps) {
+export default function LoginPage({ route }: LoginScreenProps) {
+  const { onLoginSuccess } = route.params;
+  const theme = useTheme(); // Access the theme for colors
+
   const [formData, setFormData] = useState({
     loginId: '',
     password: ''
@@ -55,7 +55,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         await AsyncStorage.setItem('user', JSON.stringify(data.user));
         await AsyncStorage.setItem('isAuthenticated', 'true');
         await AsyncStorage.setItem('userId', data.user.id.toString());
-        navigation.navigate('CrmDashboard'); 
+        onLoginSuccess();
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Invalid credentials');
@@ -67,31 +67,85 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
       setIsLoading(false);
     }
   };
+  
+  // Styles are now defined with StyleSheet for reliability with Paper components
+  const styles = StyleSheet.create({
+      container: {
+          flex: 1,
+          justifyContent: 'center',
+          padding: 16,
+          backgroundColor: '#0f172a', // slate-900
+      },
+      card: {
+          backgroundColor: '#1e293b', // slate-800
+      },
+      header: {
+          alignItems: 'center',
+          backgroundColor: '#334155', // slate-700
+          padding: 24,
+          borderTopLeftRadius: 12,
+          borderTopRightRadius: 12,
+      },
+      avatarContainer: {
+          width: 64,
+          height: 64,
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          borderRadius: 32,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 16,
+      },
+      title: {
+          color: theme.colors.onPrimary,
+          fontWeight: 'bold',
+      },
+      subtitle: {
+          color: '#cbd5e1', // slate-300
+          marginTop: 4,
+      },
+      content: {
+          padding: 24,
+      },
+      input: {
+          marginBottom: 16,
+          backgroundColor: '#334155', // slate-700
+      },
+      button: {
+          marginTop: 8,
+          paddingVertical: 6,
+      },
+      footer: {
+          marginTop: 24,
+          alignItems: 'center',
+      },
+      footerText: {
+          color: '#94a3b8', // slate-400
+      },
+      footerSubText: {
+          color: '#64748b', // slate-500
+          marginTop: 4,
+      }
+  });
 
   return (
-    // 1. Replaced View with LinearGradient for the background
-    <LinearGradient 
-      colors={['#EFF6FF', '#E0E7FF']} // from-blue-50 to-indigo-100
-      className="flex-1 items-center justify-center p-4"
+    <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
     >
-      <StatusBar barStyle="dark-content" />
-      <Card className="w-full max-w-md rounded-xl shadow-xl bg-white">
-        
-        {/* 2. Added a themed header view inside the card */}
-        <View className="items-center bg-blue-600 p-6 rounded-t-xl">
-          <View className="w-16 h-16 bg-white/20 rounded-full items-center justify-center mb-4">
-            <Avatar.Icon size={48} icon="office-building" color="#1D4ED8" style={{backgroundColor: 'transparent'}}/>
+      <StatusBar barStyle="light-content" />
+      <Card style={styles.card}>
+        <View style={styles.header}>
+          <View style={styles.avatarContainer}>
+            <Avatar.Icon size={48} icon="office-building" color="#e2e8f0" style={{ backgroundColor: 'transparent' }} />
           </View>
-          <Text variant="headlineSmall" className="font-bold text-white">
+          <Text variant="headlineSmall" style={styles.title}>
             Sales CRM
           </Text>
-          <Text variant="bodyMedium" className="text-blue-200 mt-1">
+          <Text variant="bodyMedium" style={styles.subtitle}>
             Enter your credentials to access the system
           </Text>
         </View>
-        
-        {/* Card content is now separate from the header */}
-        <Card.Content className="p-6">
+        <Card.Content style={styles.content}>
           <TextInput
             label="Login ID / Email"
             value={formData.loginId}
@@ -100,7 +154,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             left={<TextInput.Icon icon="account" />}
             autoCapitalize="none"
             keyboardType="email-address"
-            className="mb-4 bg-gray-50"
+            style={styles.input}
           />
 
           <TextInput
@@ -110,35 +164,33 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             secureTextEntry
             disabled={isLoading}
             left={<TextInput.Icon icon="lock" />}
-            className="mb-4 bg-gray-50"
+            style={styles.input}
           />
 
           {error ? (
-            <HelperText type="error" visible={!!error} className="mb-2">
+            <HelperText type="error" visible={!!error}>
               {error}
             </HelperText>
           ) : null}
 
-          {/* 3. Styled button to match the theme color */}
-          <Button 
-            mode="contained" 
+          <Button
+            mode="contained"
             onPress={handleLogin}
             loading={isLoading}
             disabled={isLoading}
-            contentStyle={{ paddingVertical: 6 }}
-            className="mt-2 bg-blue-600"
+            style={styles.button}
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
 
-          <View className="mt-6 items-center">
-            <Text variant="bodyMedium" className="text-gray-700">Use your company-provided credentials</Text>
-            <Text variant="bodySmall" className="mt-1 text-gray-500">
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Use your company-provided credentials</Text>
+            <Text style={styles.footerSubText}>
               Login ID or Email • Password from your administrator
             </Text>
           </View>
         </Card.Content>
       </Card>
-    </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }

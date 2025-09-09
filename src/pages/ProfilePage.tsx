@@ -4,7 +4,9 @@ import { SafeAreaView, ScrollView, View, TouchableOpacity, StatusBar as RNStatus
 import { Avatar, Button, Card, Chip, Modal, Portal, Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { MainTabsParamList, AppStackParamList } from '../components/ReusableConstants';
 
 import { useAppStore } from '../components/ReusableConstants';
 import LeaveApplicationForm from '../pages/forms/LeaveApplicationForm';
@@ -15,7 +17,7 @@ type RootStackParamList = {
   Profile: undefined;
   // Add other screen names here
 };
-type ProfileScreenProps = NativeStackScreenProps<RootStackParamList, 'Profile'>;
+type ProfileScreenProps = BottomTabScreenProps<MainTabsParamList, 'Profile'>;
 
 // FIX: Define prop types for your helper components
 interface StatTileProps {
@@ -78,7 +80,8 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const handleLogout = useCallback(async () => {
     await AsyncStorage.clear();
     setUser(null);
-    navigation.navigate('Login');
+    const parentNav = navigation.getParent<NativeStackNavigationProp<AppStackParamList>>();
+    parentNav?.navigate({ name: 'Login', params: { onLoginSuccess: () => { } } });
   }, [setUser, navigation]);
 
   const initials = `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`;
@@ -157,22 +160,22 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           {/* ... The rest of your component remains the same ... */}
           <View className="space-y-4">
             <TouchableOpacity onPress={() => setOpenLeave(true)} className="flex-row items-center p-4 bg-white rounded-xl border border-gray-200">
-                <Icon name="clipboard-list-outline" size={20} className="text-gray-600" />
-                <Text variant="bodyLarge" className="ml-4">Apply for Leave</Text>
+              <Icon name="clipboard-list-outline" size={20} className="text-gray-600" />
+              <Text variant="bodyLarge" className="ml-4">Apply for Leave</Text>
             </TouchableOpacity>
 
             <View className="p-4 bg-white rounded-xl border border-gray-200">
-                <Text variant="titleSmall" className="text-gray-600 mb-2">Your Leave Applications</Text>
-                <Empty iconName="clipboard-list-outline" label="No leave applications yet" />
+              <Text variant="titleSmall" className="text-gray-600 mb-2">Your Leave Applications</Text>
+              <Empty iconName="clipboard-list-outline" label="No leave applications yet" />
             </View>
-            
+
             <TouchableOpacity onPress={() => { /* Modal logic */ }} className="flex-row items-center p-4 bg-white rounded-xl border border-gray-200">
-                <Icon name="package-variant-closed" size={20} className="text-gray-600" />
-                <Text variant="bodyLarge" className="ml-4">Manage Brand Mapping</Text>
+              <Icon name="package-variant-closed" size={20} className="text-gray-600" />
+              <Text variant="bodyLarge" className="ml-4">Manage Brand Mapping</Text>
             </TouchableOpacity>
-             <View className="p-4 bg-white rounded-xl border border-gray-200">
-                <Text variant="titleSmall" className="text-gray-600 mb-2">Dealer-Brand Mapping</Text>
-                <Empty iconName="package-variant-closed" label="No mappings yet" />
+            <View className="p-4 bg-white rounded-xl border border-gray-200">
+              <Text variant="titleSmall" className="text-gray-600 mb-2">Dealer-Brand Mapping</Text>
+              <Empty iconName="package-variant-closed" label="No mappings yet" />
             </View>
           </View>
 

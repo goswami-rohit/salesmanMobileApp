@@ -9,8 +9,9 @@ import HomePage from '../pages/HomePage';
 import JourneyPage from '../pages/JourneyTrackerPage';
 import AIChatPage from '../pages/AIChatInterfacePage';
 import ProfilePage from '../pages/ProfilePage';
+import type { MainTabsParamList } from '../components/ReusableConstants';
 
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator<MainTabsParamList>();
 
 export default function BottomNavBar() {
   const theme = useTheme();
@@ -50,7 +51,7 @@ export default function BottomNavBar() {
         }}
       />
       <Tab.Screen
-        name="AI Chat"
+        name="AIChat"
         component={AIChatPage}
         options={{
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="robot-happy" size={size} color={color} />,

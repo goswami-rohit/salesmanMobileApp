@@ -1,219 +1,299 @@
-// src/pages/forms/AddDealerForm.tsx
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert, ScrollView, TouchableOpacity } from 'react-native';
+// src/pages/forms/AddDealer.tsx
+import React, { useState } from 'react';
+import { ScrollView, View, TouchableOpacity, PermissionsAndroid, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, ActivityIndicator, TextInput, useTheme, Menu, Modal, Portal, Checkbox, Switch } from 'react-native-paper';
-import * as Location from 'expo-location';
+import type { SubmitHandler, Resolver } from 'react-hook-form';
+import { Text, Button, TextInput, Switch, Modal, Portal, Checkbox, HelperText } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import RNPickerSelect from 'react-native-picker-select';
+import Geolocation from 'react-native-geolocation-service';
+
+import { useAppStore, DEALER_TYPES, REGIONS, BRANDS, FEEDBACKS } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
-import { DEALER_TYPES, REGIONS, BRANDS, FEEDBACKS } from '../../components/ReusableConstants';
-import { createDealer, getDealersForUser } from '../../backendConnections/apiServices'; // Import the service functions
+import Toast from 'react-native-toast-message';
 
-// Placeholder types for data
-type UserLite = { id: number };
-type DealerLite = { id: string; name: string };
+// --- Zod Schema for Validation (Corrected) ---
+const DealerSchema = z.object({
+  userId: z.number(),
+  type: z.string().min(1, "Dealer type is required"),
+  isSubDealer: z.boolean(),               // required boolean (use defaultValues to set false)
+  parentDealerId: z.string().optional(),
+  name: z.string().min(3, "Name must be at least 3 characters"),
+  region: z.string().min(1, "Region is required"),
+  area: z.string().min(2, "Area is required"),
+  phoneNo: z.string().regex(/^\d{10}$/, "Must be a valid 10-digit phone number"),
+  address: z.string().min(10, "Address must be at least 10 characters"),
+  totalPotential: z.coerce.number().positive("Must be a positive number"),
+  bestPotential: z.coerce.number().positive("Must be a positive number"),
+  brandSelling: z.array(z.string()).min(1, "Select at least one brand"),
+  feedbacks: z.string().min(1, "Feedback is required"),
+  remarks: z.string().optional(),
+  latitude: z.number().refine(val => val !== 0, "Please capture location"),
+  longitude: z.number().refine(val => val !== 0, "Please capture location"),
+}).refine(data => !data.isSubDealer || (data.isSubDealer && data.parentDealerId), {
+  message: "Parent dealer is required for sub-dealers",
+  path: ["parentDealerId"],
+});
 
+type DealerFormValues = z.infer<typeof DealerSchema>;
+
+// --- Component ---
 export default function AddDealerForm() {
   const navigation = useNavigation();
-  const theme = useTheme();
+  const { user, dealers } = useAppStore();
 
-  // In a real app, user would come from a global state/context
-  const [currentUser] = useState<UserLite>({ id: 1 });
-
-  // --- State Management ---
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingDealers, setIsLoadingDealers] = useState(false);
-  
-  // Form Fields
-  const [type, setType] = useState("");
-  const [isSubDealer, setIsSubDealer] = useState(false);
-  const [parentDealerId, setParentDealerId] = useState<string>("");
-  const [parentDealers, setParentDealers] = useState<DealerLite[]>([]);
-  const [name, setName] = useState("");
-  const [region, setRegion] = useState("");
-  const [area, setArea] = useState("");
-  const [phoneNo, setPhoneNo] = useState("");
-  const [address, setAddress] = useState("");
-  const [totalPotential, setTotalPotential] = useState("");
-  const [bestPotential, setBestPotential] = useState("");
-  const [brandSelling, setBrandSelling] = useState<string[]>([]);
-  const [feedbacks, setFeedbacks] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-
-  // UI State
-  const [menus, setMenus] = useState({ type: false, region: false, feedback: false, parentDealer: false });
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [brandsModalVisible, setBrandsModalVisible] = useState(false);
 
-  // --- Data Fetching & Geocoding ---
-  useEffect(() => {
-    const fetchParentDealers = async () => {
-      if (isSubDealer) {
-        setIsLoadingDealers(true);
-        // Call the central API service to fetch dealers
-        const result = await getDealersForUser(currentUser.id) as { success: boolean, data: DealerLite[] };
-        if (result.success) {
-          setParentDealers(result.data);
-        }
-        // In a real app, you might show an error if the fetch fails.
-        setIsLoadingDealers(false);
-      }
-    };
-    fetchParentDealers();
-  }, [isSubDealer, currentUser.id]);
-  
+  const { control, handleSubmit, setValue, watch, formState: { errors, isSubmitting, isValid } } = useForm<DealerFormValues>({
+    resolver: zodResolver(DealerSchema) as unknown as Resolver<DealerFormValues, any>,
+    mode: 'onChange',
+    defaultValues: {
+      userId: user?.id ?? 0,
+      type: '',
+      isSubDealer: false,
+      parentDealerId: '',
+      name: '',
+      region: '',
+      area: '',
+      phoneNo: '',
+      address: '',
+      totalPotential: 0,
+      bestPotential: 0,
+      brandSelling: [] as string[],
+      feedbacks: '',
+      remarks: '',
+      latitude: 0,
+      longitude: 0,
+    },
+  });
+
+
+  const isSubDealer = watch('isSubDealer');
+  const brandSelling = watch('brandSelling');
+
   const useMyLocation = async () => {
-    setIsSubmitting(true);
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Location access is required.');
-      setIsSubmitting(false);
-      return;
-    }
+    setIsLoadingLocation(true);
     try {
-      const loc = await Location.getCurrentPositionAsync({});
-      setLatitude(String(loc.coords.latitude));
-      setLongitude(String(loc.coords.longitude));
-    } catch (error) {
-       Alert.alert('Error', 'Could not fetch location.');
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Permission Denied', 'Location access is required.');
+          return;
+        }
+      }
+      Geolocation.getCurrentPosition(
+        (position) => {
+          setValue('latitude', position.coords.latitude, { shouldValidate: true });
+          setValue('longitude', position.coords.longitude, { shouldValidate: true });
+          Toast.show({ type: 'success', text1: 'Location Captured' });
+        },
+        (error) => Alert.alert('Error', error.message),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      );
+    } catch (err) {
+      console.warn(err);
     } finally {
-      setIsSubmitting(false);
+      setIsLoadingLocation(false);
     }
   };
 
-  // --- Form Submission ---
-  const validate = (): string | null => {
-    if (!type || !name || !region || !area || !phoneNo || !address || !totalPotential || !bestPotential || !feedbacks || !latitude || !longitude) {
-      return "Please fill all required fields.";
-    }
-    if (isSubDealer && !parentDealerId) return "Please select a parent dealer.";
-    if (brandSelling.length === 0) return "Please select at least one brand.";
-    return null;
-  };
-  
-  const handleSubmit = async () => {
-    const error = validate();
-    if (error) {
-      return Alert.alert("Validation Error", error);
-    }
-    setIsSubmitting(true);
+  const submit: SubmitHandler<DealerFormValues> = async (values) => {
+    try {
+      const payload = {
+        ...values,
+        parentDealerId: values.isSubDealer ? values.parentDealerId : null,
+      };
 
-    const dealerPayload = {
-      userId: currentUser.id,
-      type,
-      parentDealerId: isSubDealer ? parentDealerId : null,
-      name, region, area, phoneNo, address,
-      totalPotential: Number(totalPotential),
-      bestPotential: Number(bestPotential),
-      brandSelling, feedbacks, remarks,
-      latitude: Number(latitude), longitude: Number(longitude)
-    };
-    
-    // Call the central API service function
-    const result = await createDealer(dealerPayload);
-    setIsSubmitting(false);
+      const response = await fetch('YOUR_API_ENDPOINT/api/dealers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    if (result.success) {
-      Alert.alert('Success', 'New dealer has been created successfully.');
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to create dealer');
+
+      Toast.show({ type: 'success', text1: 'Dealer Created', text2: 'The new dealer has been saved.' });
       navigation.goBack();
-    } else {
-      Alert.alert('Error', 'Failed to create the new dealer.');
+    } catch (error: any) {
+      Alert.alert('Submission Failed', error.message);
     }
-  };
-  
-  // --- UI Helpers & Rendering ---
-  const textInputTheme = { colors: { primary: theme.colors.primary, text: '#e5e7eb', placeholder: '#9ca3af', background: '#1e293b', outline: '#475569' } };
-  const toggleMenu = (name: keyof typeof menus, visible: boolean) => setMenus(prev => ({ ...prev, [name]: visible }));
-  const handleBrandToggle = (brand: string) => {
-    setBrandSelling(prev => prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]);
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <SafeAreaView className="flex-1 bg-slate-900" edges={['right', 'bottom', 'left']}>
       <AppHeader title="Add New Dealer" />
       <Portal>
-        <Modal visible={brandsModalVisible} onDismiss={() => setBrandsModalVisible(false)} contentContainerStyle={styles.modalContainer}>
-          <Text variant="titleLarge" style={styles.modalTitle}>Select Brands</Text>
-          {BRANDS.map(brand => <Checkbox.Item key={brand} label={brand} status={brandSelling.includes(brand) ? 'checked' : 'unchecked'} onPress={() => handleBrandToggle(brand)} labelStyle={{ color: '#e5e7eb' }} color={theme.colors.primary} uncheckedColor='#9ca3af' />)}
-          <Button onPress={() => setBrandsModalVisible(false)} style={{ marginTop: 10 }}>Done</Button>
+        <Modal visible={brandsModalVisible} onDismiss={() => setBrandsModalVisible(false)} contentContainerStyle={{ backgroundColor: '#1e293b', padding: 20, margin: 20, borderRadius: 8 }}>
+          <Text variant="titleLarge" className="text-slate-200 mb-2">Select Brands</Text>
+          <ScrollView>
+            {BRANDS.map(brand => (
+              <Checkbox.Item
+                key={brand}
+                label={brand}
+                status={brandSelling.includes(brand) ? 'checked' : 'unchecked'}
+                onPress={() => {
+                  const newBrands = brandSelling.includes(brand) ? brandSelling.filter(b => b !== brand) : [...brandSelling, brand];
+                  setValue('brandSelling', newBrands, { shouldValidate: true });
+                }}
+                labelStyle={{ color: '#e5e7eb' }}
+              />
+            ))}
+          </ScrollView>
+          <Button onPress={() => setBrandsModalVisible(false)} className="mt-4">Done</Button>
         </Modal>
       </Portal>
 
-      <ScrollView contentContainerStyle={styles.formContainer}>
-        <Text variant="headlineSmall" style={styles.title}>Dealer Information</Text>
-        <Text variant="bodyMedium" style={styles.subtitle}>Fill in the details for the new dealer.</Text>
-        
-        <View style={styles.switchContainer}>
-            <Text style={{color: '#e5e7eb'}}>Is this a Sub-Dealer?</Text>
-            <Switch value={isSubDealer} onValueChange={setIsSubDealer} />
-        </View>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-1">Dealer Information</Text>
+        <Text variant="bodyMedium" className="text-slate-400 text-center mb-6">Fill in the details for the new dealer.</Text>
+
+        <Controller control={control} name="isSubDealer" render={({ field: { onChange, value } }) => (
+          <View className="flex-row items-center justify-between p-3 bg-slate-800 rounded-lg mb-4">
+            <Text className="text-slate-200">Is this a Sub-Dealer?</Text>
+            <Switch value={value} onValueChange={onChange} />
+          </View>
+        )} />
 
         {isSubDealer && (
-            <Menu 
-              visible={menus.parentDealer} 
-              onDismiss={() => toggleMenu('parentDealer', false)} 
-              anchor={
-                <TouchableOpacity onPress={() => toggleMenu('parentDealer', true)} disabled={isLoadingDealers}>
-                  <TextInput 
-                    label="Parent Dealer *" 
-                    editable={false} 
-                    value={isLoadingDealers ? 'Loading...' : parentDealers.find(d => d.id === parentDealerId)?.name} 
-                    style={styles.input} 
-                    theme={textInputTheme} 
-                    right={isLoadingDealers && <TextInput.Icon icon="loading" />}
-                  />
-                </TouchableOpacity>
-              }>
-              {parentDealers.map(d => <Menu.Item key={d.id} onPress={() => { setParentDealerId(d.id); toggleMenu('parentDealer', false); }} title={d.name} />)}
-            </Menu>
+          <Controller control={control} name="parentDealerId" render={({ field: { onChange, value } }) => (
+            <View className="mb-4">
+              <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
+                <RNPickerSelect
+                  onValueChange={onChange}
+                  value={value}
+                  items={dealers.map(d => ({ label: d.name, value: String(d.id) }))}
+                  placeholder={{ label: "Select Parent Dealer *", value: null }}
+                  style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }}
+                  useNativeAndroidPickerStyle={false}
+                  Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />}
+                />
+              </View>
+              {errors.parentDealerId && <HelperText type="error">{errors.parentDealerId.message}</HelperText>}
+            </View>
+          )} />
         )}
 
-        <Menu visible={menus.type} onDismiss={() => toggleMenu('type', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('type', true)}><TextInput label="Type *" editable={false} value={type} style={styles.input} theme={textInputTheme} /></TouchableOpacity>}>{DEALER_TYPES.map(t => <Menu.Item key={t} onPress={() => { setType(t); toggleMenu('type', false); }} title={t} />)}</Menu>
-        
-        <TextInput label="Dealer/Sub-Dealer Name *" value={name} onChangeText={setName} style={styles.input} theme={textInputTheme} />
-        <View style={{flexDirection: 'row', gap: 8}}>
-            <Menu visible={menus.region} onDismiss={() => toggleMenu('region', false)} anchor={<TouchableOpacity style={{flex: 1}} onPress={() => toggleMenu('region', true)}><TextInput label="Region *" editable={false} value={region} style={styles.input} theme={textInputTheme} /></TouchableOpacity>}>{REGIONS.map(r => <Menu.Item key={r} onPress={() => { setRegion(r); toggleMenu('region', false); }} title={r} />)}</Menu>
-            <TextInput label="Area *" value={area} onChangeText={setArea} style={[styles.input, {flex: 1}]} theme={textInputTheme} />
+        <Controller control={control} name="type" render={({ field: { onChange, value } }) => (
+          <View className="mb-4">
+            <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
+              <RNPickerSelect onValueChange={onChange} value={value} items={DEALER_TYPES.map(t => ({ label: t, value: t }))} placeholder={{ label: "Select Dealer Type *", value: null }} style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />} />
+            </View>
+            {errors.type && <HelperText type="error">{errors.type.message}</HelperText>}
+          </View>
+        )} />
+
+        <Controller control={control} name="name" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Dealer Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.name} />
+            {errors.name && <HelperText type="error">{errors.name.message}</HelperText>}
+          </View>
+        )} />
+
+        <View className="flex-row gap-4">
+          <Controller control={control} name="region" render={({ field: { onChange, value } }) => (
+            <View className="flex-1 mb-4">
+              <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
+                <RNPickerSelect onValueChange={onChange} value={value} items={REGIONS.map(r => ({ label: r, value: r }))} placeholder={{ label: "Region *", value: null }} style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />} />
+              </View>
+              {errors.region && <HelperText type="error">{errors.region.message}</HelperText>}
+            </View>
+          )} />
+          <Controller control={control} name="area" render={({ field: { onChange, onBlur, value } }) => (
+            <View className="flex-1 mb-4">
+              <TextInput label="Area *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.area} />
+              {errors.area && <HelperText type="error">{errors.area.message}</HelperText>}
+            </View>
+          )} />
         </View>
 
-        <TextInput label="Address *" multiline numberOfLines={3} value={address} onChangeText={setAddress} style={styles.input} theme={textInputTheme} />
-        <TextInput label="Phone No *" keyboardType="phone-pad" value={phoneNo} onChangeText={setPhoneNo} style={styles.input} theme={textInputTheme} />
+        <Controller control={control} name="address" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Address *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.address} multiline numberOfLines={3} />
+            {errors.address && <HelperText type="error">{errors.address.message}</HelperText>}
+          </View>
+        )} />
 
-        <Button icon="crosshairs-gps" mode="outlined" onPress={useMyLocation} style={styles.input}>
-             Use My Current Location
-        </Button>
-        <View style={{flexDirection: 'row', gap: 8}}>
-            <TextInput label="Latitude *" editable={false} value={latitude} style={[styles.input, {flex: 1}]} theme={textInputTheme} />
-            <TextInput label="Longitude *" editable={false} value={longitude} style={[styles.input, {flex: 1}]} theme={textInputTheme} />
+        <Controller control={control} name="phoneNo" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Phone No *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.phoneNo} keyboardType="phone-pad" />
+            {errors.phoneNo && <HelperText type="error">{errors.phoneNo.message}</HelperText>}
+          </View>
+        )} />
+
+        <View className="flex-row gap-4">
+          <Controller control={control} name="latitude" render={({ field: { value } }) => (<TextInput label="Latitude *" value={String(value || '')} editable={false} className="flex-1 mb-4" error={!!errors.latitude} />)} />
+          <Controller control={control} name="longitude" render={({ field: { value } }) => (<TextInput label="Longitude *" value={String(value || '')} editable={false} className="flex-1 mb-4" error={!!errors.longitude} />)} />
+        </View>
+        <Button icon="crosshairs-gps" mode="outlined" onPress={useMyLocation} loading={isLoadingLocation} className="mb-4"> Use My Location </Button>
+        {errors.latitude && <HelperText type="error" className="-mt-4 mb-4">{errors.latitude.message}</HelperText>}
+
+        <View className="flex-row gap-4">
+          <Controller control={control} name="totalPotential" render={({ field: { onChange, onBlur, value } }) => (
+            <View className="flex-1 mb-4">
+              <TextInput
+                label="Total Potential *"
+                value={String(value || '')}
+                onChangeText={(text) => {
+                  const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
+                  onChange(isNaN(num) ? undefined : num);
+                }}
+                onBlur={onBlur}
+                error={!!errors.totalPotential}
+                keyboardType="numeric"
+              />
+              {errors.totalPotential && <HelperText type="error">{errors.totalPotential.message}</HelperText>}
+            </View>
+          )} />
+          <Controller control={control} name="bestPotential" render={({ field: { onChange, onBlur, value } }) => (
+            <View className="flex-1 mb-4">
+              <TextInput
+                label="Best Potential *"
+                value={String(value || '')}
+                onChangeText={(text) => {
+                  const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
+                  onChange(isNaN(num) ? undefined : num);
+                }}
+                onBlur={onBlur}
+                error={!!errors.bestPotential}
+                keyboardType="numeric"
+              />
+              {errors.bestPotential && <HelperText type="error">{errors.bestPotential.message}</HelperText>}
+            </View>
+          )} />
         </View>
 
-        <View style={{flexDirection: 'row', gap: 8}}>
-            <TextInput label="Total Potential *" keyboardType="numeric" value={totalPotential} onChangeText={setTotalPotential} style={[styles.input, {flex: 1}]} theme={textInputTheme} />
-            <TextInput label="Best Potential *" keyboardType="numeric" value={bestPotential} onChangeText={setBestPotential} style={[styles.input, {flex: 1}]} theme={textInputTheme} />
-        </View>
+        <TouchableOpacity onPress={() => setBrandsModalVisible(true)} className="mb-4">
+          <TextInput label="Brands Selling *" editable={false} value={brandSelling.join(', ') || 'Select brands...'} error={!!errors.brandSelling} right={<TextInput.Icon icon="chevron-down" />} />
+          {errors.brandSelling && <HelperText type="error">{errors.brandSelling.message}</HelperText>}
+        </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setBrandsModalVisible(true)}><TextInput label="Brands Selling *" editable={false} value={brandSelling.join(', ') || 'Select brands...'} style={styles.input} theme={textInputTheme} /></TouchableOpacity>
-        <Menu visible={menus.feedback} onDismiss={() => toggleMenu('feedback', false)} anchor={<TouchableOpacity onPress={() => toggleMenu('feedback', true)}><TextInput label="Feedbacks *" editable={false} value={feedbacks} style={styles.input} theme={textInputTheme} /></TouchableOpacity>}>{FEEDBACKS.map(fb => <Menu.Item key={fb} onPress={() => { setFeedbacks(fb); toggleMenu('feedback', false); }} title={fb} />)}</Menu>
-        <TextInput label="Remarks" multiline numberOfLines={3} value={remarks} onChangeText={setRemarks} style={styles.input} theme={textInputTheme} />
+        <Controller control={control} name="feedbacks" render={({ field: { onChange, value } }) => (
+          <View className="mb-4">
+            <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
+              <RNPickerSelect onValueChange={onChange} value={value} items={FEEDBACKS.map(f => ({ label: f, value: f }))} placeholder={{ label: "Select Feedback *", value: null }} style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />} />
+            </View>
+            {errors.feedbacks && <HelperText type="error">{errors.feedbacks.message}</HelperText>}
+          </View>
+        )} />
 
-        <Button mode="contained" onPress={handleSubmit} style={styles.button} loading={isSubmitting} disabled={isSubmitting}>
+        <Controller control={control} name="remarks" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Remarks" value={value || ''} onChangeText={onChange} onBlur={onBlur} multiline numberOfLines={3} />
+            {errors.remarks && <HelperText type="error">{errors.remarks.message}</HelperText>}
+          </View>
+        )} />
+
+        <Button mode="contained" onPress={handleSubmit(submit)} loading={isSubmitting} disabled={!isValid || isSubmitting} className="mt-2 p-1">
           Save Dealer
         </Button>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0f172a" },
-  formContainer: { padding: 16, paddingBottom: 32 },
-  title: { color: "#e5e7eb", marginBottom: 4, fontWeight: 'bold', textAlign: 'center' },
-  subtitle: { color: '#9ca3af', marginBottom: 24, textAlign: 'center' },
-  input: { marginBottom: 16 },
-  button: { marginTop: 8, paddingVertical: 4, width: '100%' },
-  switchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, backgroundColor: '#1e293b', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 4 },
-  modalContainer: { backgroundColor: '#1e293b', padding: 20, margin: 20, borderRadius: 8 },
-  modalTitle: { color: '#e5e7eb', marginBottom: 10 },
-});
 

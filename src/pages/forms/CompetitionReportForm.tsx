@@ -1,134 +1,177 @@
 // src/pages/forms/CompetitionReportForm.tsx
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { ScrollView, View, TouchableOpacity, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, TextInput, useTheme, Menu } from 'react-native-paper';
+import { Text, Button, TextInput, HelperText } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useForm, Controller, Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import RNPickerSelect from 'react-native-picker-select';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
+
+import { useAppStore } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
-import { createCompetitionReport } from '../../backendConnections/apiServices'; // Import the service function
+import Toast from 'react-native-toast-message';
 
-// Placeholder type for user data (in a real app, from context/global state)
-type UserLite = { id?: number; };
+// --- Zod Schema based on your DB Schema ---
+const CompetitionReportSchema = z.object({
+  userId: z.number(),
+  reportDate: z.date(),
+  brandName: z.string().min(1, "Brand name is required"),
+  // DB schema is varchar, so we'll treat these as strings but validate for numeric input
+  billing: z.string().min(1, "Billing is required").regex(/^[0-9.]+$/, "Must be a number"),
+  nod: z.string().min(1, "NOD is required").regex(/^[0-9]+$/, "Must be a whole number"),
+  retail: z.string().min(1, "Retail is required").regex(/^[0-9.]+$/, "Must be a number"),
+  schemesYesNo: z.enum(['Yes', 'No']),
+  avgSchemeCost: z.coerce.number().min(0, "Cannot be negative"),
+  remarks: z.string().optional(),
+});
 
+type CompetitionReportFormValues = z.infer<typeof CompetitionReportSchema>;
+
+// --- Component ---
 export default function CompetitionReportForm() {
   const navigation = useNavigation();
-  const theme = useTheme();
-
-  // In a real app, user info would come from a global state/context.
-  const [currentUser] = useState<UserLite>({ id: 1 });
-
-  // --- State Management ---
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Form Fields based on Drizzle Schema
-  const [reportDate, setReportDate] = useState<Date | null>(new Date());
-  const [brandName, setBrandName] = useState("");
-  const [billing, setBilling] = useState("");
-  const [nod, setNod] = useState("");
-  const [retail, setRetail] = useState("");
-  const [schemesYesNo, setSchemesYesNo] = useState<"Yes" | "No" | "">("");
-  const [avgSchemeCost, setAvgSchemeCost] = useState("");
-  const [remarks, setRemarks] = useState("");
-
-  // UI State
+  const { user } = useAppStore();
+  
   const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [schemesMenuVisible, setSchemesMenuVisible] = useState(false);
 
-  // --- Form Submission ---
-  const validate = (): string | null => {
-    if (!reportDate || !brandName.trim() || !billing.trim() || !nod.trim() || !retail.trim() || !schemesYesNo) {
-        return "Please fill all required fields.";
-    }
-    if (isNaN(Number(billing)) || isNaN(Number(nod)) || isNaN(Number(retail)) || isNaN(Number(avgSchemeCost))) {
-        return "Billing, NOD, Retail, and Scheme Cost fields must be numbers.";
-    }
-    return null;
-  };
-  
-  const handleSubmit = async () => {
-    const error = validate();
-    if (error) return Alert.alert("Validation Error", error);
-    
-    setIsSubmitting(true);
+  const { control, handleSubmit, setValue, watch, formState: { errors, isSubmitting, isValid } } = useForm<CompetitionReportFormValues>({
+    resolver: zodResolver(CompetitionReportSchema) as unknown as Resolver<CompetitionReportFormValues, any>,
+    mode: 'onChange',
+    defaultValues: {
+      userId: user?.id,
+      reportDate: new Date(),
+      brandName: '',
+      billing: '',
+      nod: '',
+      retail: '',
+      schemesYesNo: undefined, // Let the placeholder show
+      avgSchemeCost: undefined,
+      remarks: '',
+    },
+  });
 
-    const payload = {
-      userId: currentUser.id,
-      reportDate: reportDate?.toISOString().split('T')[0],
-      brandName: brandName.trim(),
-      billing,
-      nod,
-      retail,
-      schemesYesNo,
-      avgSchemeCost: Number(avgSchemeCost),
-      remarks: remarks.trim() || null,
-    };
-    
-    // Call the central API service function
-    const result = await createCompetitionReport(payload) as { success: boolean };
-    setIsSubmitting(false);
+  const reportDate = watch('reportDate');
 
-    if (result.success) {
-      Alert.alert('Success', 'Competition report has been submitted successfully.');
-      navigation.goBack();
-    } else {
-      Alert.alert('Error', 'Failed to submit competition report.');
-    }
-  };
-  
-  // --- UI Helpers & Rendering ---
-  const textInputTheme = { colors: { primary: theme.colors.primary, text: '#e5e7eb', placeholder: '#9ca3af', background: '#1e293b', outline: '#475569' } };
-  
   const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-      setDatePickerVisible(false);
-      if (event.type === 'set' && selectedDate) {
-        setReportDate(selectedDate);
-      }
+    setDatePickerVisible(Platform.OS === 'ios');
+    if (event.type === 'dismissed' || !selectedDate) {
+        setDatePickerVisible(false);
+        return;
+    }
+    setValue('reportDate', selectedDate, { shouldValidate: true });
+    setDatePickerVisible(false);
+  };
+
+  const submit = async (values: CompetitionReportFormValues) => {
+    try {
+      const payload = {
+        ...values,
+        reportDate: format(values.reportDate, 'yyyy-MM-dd'),
+        remarks: values.remarks || null,
+      };
+
+      const response = await fetch('YOUR_API_ENDPOINT/api/competition-reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to submit report');
+
+      Toast.show({ type: 'success', text1: 'Report Submitted', text2: 'Competition report has been saved.' });
+      navigation.goBack();
+    } catch (error: any) {
+      Alert.alert('Submission Failed', error.message);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['right', 'bottom', 'left']}>
+    <SafeAreaView className="flex-1 bg-slate-900" edges={['right', 'bottom', 'left']}>
       <AppHeader title="Competition Report" />
 
       {datePickerVisible && (
         <DateTimePicker value={reportDate || new Date()} mode="date" display="default" onChange={onDateChange} />
       )}
 
-      <ScrollView contentContainerStyle={styles.formContainer}>
-        <Text variant="headlineSmall" style={styles.title}>New Competition Report</Text>
-        <Text variant="bodyMedium" style={styles.subtitle}>Log information about competitor activity.</Text>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-1">New Competition Report</Text>
+        <Text variant="bodyMedium" className="text-slate-400 text-center mb-6">Log information about competitor activity.</Text>
         
-        <TouchableOpacity onPress={() => setDatePickerVisible(true)}>
-            <TextInput label="Report Date *" value={reportDate ? reportDate.toLocaleDateString() : ''} editable={false} style={styles.input} theme={textInputTheme} right={<TextInput.Icon icon="calendar" />} />
-        </TouchableOpacity>
+        <View className="mb-4">
+            <TouchableOpacity onPress={() => setDatePickerVisible(true)}>
+                <TextInput label="Report Date *" value={format(reportDate, "PPP")} editable={false} right={<TextInput.Icon icon="calendar" />} error={!!errors.reportDate} />
+            </TouchableOpacity>
+            {errors.reportDate && <HelperText type="error">{errors.reportDate.message as string}</HelperText>}
+        </View>
         
-        <TextInput label="Brand Name *" value={brandName} onChangeText={setBrandName} style={styles.input} theme={textInputTheme} />
-        <TextInput label="Billing *" keyboardType="numeric" value={billing} onChangeText={setBilling} style={styles.input} theme={textInputTheme} />
-        <TextInput label="NOD (No. of Dealers) *" keyboardType="numeric" value={nod} onChangeText={setNod} style={styles.input} theme={textInputTheme} />
-        <TextInput label="Retail *" keyboardType="numeric" value={retail} onChangeText={setRetail} style={styles.input} theme={textInputTheme} />
+        <Controller control={control} name="brandName" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Brand Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.brandName} />
+            {errors.brandName && <HelperText type="error">{errors.brandName.message}</HelperText>}
+          </View>
+        )} />
 
-        <Menu visible={schemesMenuVisible} onDismiss={() => setSchemesMenuVisible(false)} anchor={<TouchableOpacity onPress={() => setSchemesMenuVisible(true)}><TextInput label="Schemes Active? *" editable={false} value={schemesYesNo} style={styles.input} theme={textInputTheme} /></TouchableOpacity>}>
-            <Menu.Item onPress={() => { setSchemesYesNo("Yes"); setSchemesMenuVisible(false); }} title="Yes" />
-            <Menu.Item onPress={() => { setSchemesYesNo("No"); setSchemesMenuVisible(false); }} title="No" />
-        </Menu>
+        <Controller control={control} name="billing" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Billing *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.billing} keyboardType="numeric" />
+            {errors.billing && <HelperText type="error">{errors.billing.message}</HelperText>}
+          </View>
+        )} />
 
-        <TextInput label="Average Scheme Cost (₹) *" keyboardType="numeric" value={avgSchemeCost} onChangeText={setAvgSchemeCost} style={styles.input} theme={textInputTheme} />
-        <TextInput label="Remarks" multiline numberOfLines={4} value={remarks} onChangeText={setRemarks} style={styles.input} theme={textInputTheme} />
+        <Controller control={control} name="nod" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="NOD (No. of Dealers) *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.nod} keyboardType="numeric" />
+            {errors.nod && <HelperText type="error">{errors.nod.message}</HelperText>}
+          </View>
+        )} />
 
-        <Button mode="contained" onPress={handleSubmit} style={styles.button} loading={isSubmitting} disabled={isSubmitting}>
+        <Controller control={control} name="retail" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Retail *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.retail} keyboardType="numeric" />
+            {errors.retail && <HelperText type="error">{errors.retail.message}</HelperText>}
+          </View>
+        )} />
+
+        <Controller control={control} name="schemesYesNo" render={({ field: { onChange, value } }) => (
+            <View className="mb-4">
+              <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
+                  <RNPickerSelect 
+                    onValueChange={onChange} 
+                    value={value} 
+                    items={[{ label: 'Yes', value: 'Yes' }, { label: 'No', value: 'No' }]}
+                    placeholder={{ label: "Are schemes active? *", value: null}}
+                    style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} 
+                    useNativeAndroidPickerStyle={false} 
+                    Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />}
+                  />
+              </View>
+              {errors.schemesYesNo && <HelperText type="error">{errors.schemesYesNo.message}</HelperText>}
+            </View>
+        )} />
+
+        <Controller control={control} name="avgSchemeCost" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Average Scheme Cost (₹) *" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} error={!!errors.avgSchemeCost} keyboardType="numeric" />
+            {errors.avgSchemeCost && <HelperText type="error">{errors.avgSchemeCost.message}</HelperText>}
+          </View>
+        )} />
+
+        <Controller control={control} name="remarks" render={({ field: { onChange, onBlur, value } }) => (
+          <View className="mb-4">
+            <TextInput label="Remarks" value={value || ''} onChangeText={onChange} onBlur={onBlur} multiline numberOfLines={3} />
+          </View>
+        )} />
+
+        <Button mode="contained" onPress={handleSubmit(submit)} loading={isSubmitting} disabled={!isValid || isSubmitting} className="mt-2 p-1">
           Submit Report
         </Button>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0f172a" },
-  formContainer: { padding: 16, paddingBottom: 32 },
-  title: { color: "#e5e7eb", marginBottom: 4, fontWeight: 'bold', textAlign: 'center' },
-  subtitle: { color: '#9ca3af', marginBottom: 24, textAlign: 'center' },
-  input: { marginBottom: 16 },
-  button: { marginTop: 8, paddingVertical: 4, width: '100%' },
-});
-
