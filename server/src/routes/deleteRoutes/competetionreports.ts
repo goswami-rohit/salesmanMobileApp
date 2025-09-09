@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/competitionReports.ts 
+//  server/src/routes/deleteRoutes/competitionreports.ts 
 // Competition Reports DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

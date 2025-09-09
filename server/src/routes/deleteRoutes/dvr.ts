@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/dailyVisitReports.ts 
+//  server/src/routes/deleteRoutes/dvr.ts 
 // Daily Visit Reports DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

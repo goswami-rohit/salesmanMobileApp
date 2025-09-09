@@ -32,37 +32,42 @@ import setupDailyTasksDeleteRoutes from '../routes/deleteRoutes/dailytask';
 import setupSalesReportDeleteRoutes from '../routes/deleteRoutes/salesreport';
 import setupSalesmanLeaveApplicationsDeleteRoutes from '../routes/deleteRoutes/salesmanleave';
 import setupCompetitionReportsDeleteRoutes from '../routes/deleteRoutes/competetionreports';
+import setupColllectionReportsDeleteRoutes from '../routes/deleteRoutes/collectionreports';
 import setupBrandsDeleteRoutes from '../routes/deleteRoutes/brands';
 import setupRatingsDeleteRoutes from '../routes/deleteRoutes/ratings';
 import setupSalesOrdersDeleteRoutes from '../routes/deleteRoutes/salesOrder';
 import setupDealerReportsAndScoresDeleteRoutes from '../routes/deleteRoutes/dealerReportsAndScores';
 
 // --- Import POST route setups ---
+import setupDailyVisitReportsPostRoutes from '../routes/formSubmissionRoutes/dvr';
 import setupTechnicalVisitReportsPostRoutes from '../routes/formSubmissionRoutes/tvr';
 import setupPermanentJourneyPlansPostRoutes from '../routes/formSubmissionRoutes/pjp';
 import setupDealersPostRoutes from '../routes/formSubmissionRoutes/addDealer';
 import setupSalesmanLeaveApplicationsPostRoutes from '../routes/formSubmissionRoutes/salesManleave';
-import setupClientReportsPostRoutes from '../routes/postRoutes/clientReports';
-import setupCompetitionReportsPostRoutes from '../routes/postRoutes/competitionReports';
-import setupDailyTasksPostRoutes from '../routes/postRoutes/dailyTasks';
-import setupDealerReportsAndScoresPostRoutes from '../routes/postRoutes/dealerReportsAndScores';
-import setupSalesReportPostRoutes from '../routes/postRoutes/salesReport';
-import setupCollectionReportsPostRoutes from '../routes/postRoutes/collectionReports';
-import setupDdpPostRoutes from '../routes/postRoutes/ddp';
-import setupRatingsPostRoutes from '../routes/postRoutes/ratings';
-import setupBrandsPostRoutes from '../routes/postRoutes/brands';
-import setupSalesOrdersPostRoutes from '../routes/postRoutes/salesOrders';
-import setupDealerBrandMappingPostRoutes from '../routes/postRoutes/dealerBrandMapping';
-import setupDailyVisitReportsPostRoutes from '../routes/postRoutes/dailyVisitReports';
-import setupAttendanceCheckInRoutes from '../routes/postRoutes/attendanceCheckIn';
-import setupAttendanceCheckOutRoutes from '../routes/postRoutes/attendanceCheckOut';
+import setupClientReportsPostRoutes from '../routes/formSubmissionRoutes/clientReport';
+import setupCompetitionReportsPostRoutes from '../routes/formSubmissionRoutes/competitionReport';
+import setupDailyTasksPostRoutes from '../routes/formSubmissionRoutes/dailytasks';
+import setupDealerReportsAndScoresPostRoutes from '../routes/formSubmissionRoutes/dealerReportsAndScores';
+import setupSalesReportPostRoutes from '../routes/formSubmissionRoutes/salesreport';
+import setupCollectionReportsPostRoutes from '../routes/formSubmissionRoutes/collectionReport';
+import setupDdpPostRoutes from '../routes/formSubmissionRoutes/ddp';
+import setupRatingsPostRoutes from '../routes/formSubmissionRoutes/ratings';
+import setupBrandsPostRoutes from '../routes/formSubmissionRoutes/brand';
+import setupSalesOrdersPostRoutes from '../routes/formSubmissionRoutes/salesOrder';
+import setupDealerBrandMappingPostRoutes from '../routes/formSubmissionRoutes/brandMapping';
+import setupAttendanceCheckInRoutes from '../routes/formSubmissionRoutes/attendanceIn';
+import setupAttendanceCheckOutRoutes from '../routes/formSubmissionRoutes/attendanceOut';
 
 // Initialize environment variables
 dotenv.config();
 
 // --- Server Setup ---
 const app: Express = express();
-const PORT = process.env.PORT || 8080;
+//const PORT = process.env.PORT || 8080;
+const DEFAULT_PORT = 8080;
+const parsed = parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
+const PORT = Number.isNaN(parsed) ? DEFAULT_PORT : parsed;
+
 
 // --- Core Middleware ---
 // Enable Cross-Origin Resource Sharing for all routes
@@ -145,7 +150,7 @@ setupDailyTasksDeleteRoutes(app);        // DELETE /api/daily-tasks/*
 setupSalesReportDeleteRoutes(app);       // DELETE /api/sales-reports/*
 setupSalesmanLeaveApplicationsDeleteRoutes(app); // DELETE /api/leave-applications/*
 setupCompetitionReportsDeleteRoutes(app); // DELETE /api/competition-reports/*
-setupCollectionReportsDeleteRoutes(app); // DELETE /api/collection-reports/*
+setupColllectionReportsDeleteRoutes(app); // DELETE /api/collection-reports/*
 setupBrandsDeleteRoutes(app);            // DELETE /api/brands/*
 setupRatingsDeleteRoutes(app);           // DELETE /api/ratings/*
 setupSalesOrdersDeleteRoutes(app);       // DELETE /api/sales-orders/*
@@ -171,6 +176,6 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 // --- Start the Server ---
-app.listen(PORT, () => {
-  console.log(`✅ Server is running and listening on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server is running and listening on http://0.0.0.0:${PORT}`);
 });

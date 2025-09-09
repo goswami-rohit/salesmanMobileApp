@@ -7,6 +7,7 @@ module.exports = ({ config }) => {
     name: "SalesmanMobileApp",
     slug: "salesmanMobileApp",
     owner: "rohitgoswami",
+    userInterfaceStyle: "automatic",
     extra: {
       VITE_RADAR_PUBLISHABLE_KEY: process.env.VITE_RADAR_PUBLISHABLE_KEY || '',
       DATABASE_URL: process.env.DATABASE_URL || '',

@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/permanentJourneyPlans.ts 
+//  server/src/routes/deleteRoutes/pjp.ts 
 // Permanent Journey Plans DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

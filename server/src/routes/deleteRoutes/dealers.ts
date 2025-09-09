@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/dealers.ts 
+//  server/src/routes/deleteRoutes/dealers.ts 
 // Dealers DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

@@ -26,7 +26,7 @@ import AddDealerForm from '../../server/src/routes/formSubmissionRoutes/addDeale
 import AttendanceInForm from '../../server/src/routes/formSubmissionRoutes/attendanceIn';
 import AttendanceOutForm from '../../server/src/routes/formSubmissionRoutes/attendanceOut';
 import BrandMappingForm from '../../server/src/routes/formSubmissionRoutes/brandMapping';
-import ClientReportsForm from '../../server/src/routes/formSubmissionRoutes/clientRepots';
+import ClientReportsForm from '../../server/src/routes/formSubmissionRoutes/clientReport';
 import CompetitionReportsForm from '../../server/src/routes/formSubmissionRoutes/competitionReport';
 import SalesOrderForm from '../../server/src/routes/formSubmissionRoutes/salesOrder';
 import DVRForm from '../../server/src/routes/formSubmissionRoutes/dvr';

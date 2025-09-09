@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/dailyTasks.ts 
+//  server/src/routes/deleteRoutes/dailytasks.ts 
 // Daily Tasks DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

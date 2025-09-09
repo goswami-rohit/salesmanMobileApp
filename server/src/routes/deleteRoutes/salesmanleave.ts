@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/salesmanLeaveApplications.ts 
+//  server/src/routes/deleteRoutes/salesmanleave.ts 
 // Salesman Leave Applications DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

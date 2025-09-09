@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/salesOrders.ts 
+//  server/src/routes/deleteRoutes/salesOrders.ts 
 // Sales Orders DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

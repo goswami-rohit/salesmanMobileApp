@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/technicalVisitReports.ts 
+//  server/src/routes/deleteRoutes/tvr.ts 
 // Technical Visit Reports DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';

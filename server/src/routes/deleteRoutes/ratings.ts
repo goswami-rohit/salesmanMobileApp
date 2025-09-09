@@ -1,4 +1,4 @@
-//  server/src/routes/dataFetchingRoutes/ratings.ts 
+//  server/src/routes/deleteRoutes/ratings.ts 
 // Ratings DELETE endpoints using createAutoCRUD pattern
 
 import { Request, Response, Express } from 'express';
