@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 // --- Import ALL your API route setups ---
 import setupAuthRoutes from '../routes/auth';  // NEW
 import setupUsersRoutes from '../routes/users'; // NEW
+import setupCompaniesRoutes from '../routes/companies'; // NEW2
 import setupBrandsAndMappingRoutes from '../routes/dataFetchingRoutes/brandMappingFetch';
 import setupClientReportsRoutes from '../routes/dataFetchingRoutes/clientReports';
 import setupCollectionReportsRoutes from '../routes/dataFetchingRoutes/collectionReports';
@@ -59,6 +60,18 @@ import setupDealerBrandMappingPostRoutes from '../routes/formSubmissionRoutes/br
 import setupAttendanceCheckInRoutes from '../routes/formSubmissionRoutes/attendanceIn';
 import setupAttendanceCheckOutRoutes from '../routes/formSubmissionRoutes/attendanceOut';
 
+// --- Import UPDATE (PATCH) route setups ---
+import setupDealersPatchRoutes from '../routes/updateRoutes/dealers';
+import setupPjpPatchRoutes from '../routes/updateRoutes/pjp';
+import setupDailyTaskPatchRoutes from '../routes/updateRoutes/dailytask';
+import setupDealerBrandMappingPatchRoutes from '../routes/updateRoutes/brandMapping';
+import setupBrandsPatchRoutes from '../routes/updateRoutes/brands';
+import setupRatingsPatchRoutes from '../routes/updateRoutes/ratings';
+import setupDealerScoresPatchRoutes from '../routes/updateRoutes/dealerReportandScores';
+
+// --- Import GEO TRACKING route setups ---
+import setupGeoTrackingRoutes from '../routes/geoTrackingRoutes/geoTracking';
+
 // Initialize environment variables
 
 // ADD THIS DEBUG LINE:
@@ -68,7 +81,7 @@ console.log('DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
 // --- Server Setup ---
 const app: Express = express();
 //const PORT = process.env.PORT || 8080;
-const DEFAULT_PORT = 8080;
+const DEFAULT_PORT = 8000;
 const parsed = parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
 const PORT = Number.isNaN(parsed) ? DEFAULT_PORT : parsed;
 
@@ -102,6 +115,7 @@ console.log('🔌 Registering API routes...');
 // Authentication and Users (FIRST)
 setupAuthRoutes(app);                    // /api/auth/login, /api/user/:id
 setupUsersRoutes(app);                   // /api/users/*
+setupCompaniesRoutes(app);                // /api/companies
 
 // Core Data Endpoints (GET)
 setupBrandsAndMappingRoutes(app);        // /api/brands/*, /api/dealer-brand-mapping/*
@@ -160,6 +174,17 @@ setupRatingsDeleteRoutes(app);           // DELETE /api/ratings/*
 setupSalesOrdersDeleteRoutes(app);       // DELETE /api/sales-orders/*
 setupDealerReportsAndScoresDeleteRoutes(app); // DELETE /api/dealer-reports-scores/*
 
+// UPDATE (PATCH) endpoints
+setupDealersPatchRoutes(app);
+setupDealerScoresPatchRoutes(app);
+setupRatingsPatchRoutes(app);
+setupDailyTaskPatchRoutes(app);
+setupDealerBrandMappingPatchRoutes(app);
+setupBrandsPatchRoutes(app);
+setupPjpPatchRoutes(app);
+
+// ---------- GEO TRACKING SETUP--------
+setupGeoTrackingRoutes(app);
 console.log('✅ All routes registered successfully.');
 
 // --- Error Handling Middleware ---

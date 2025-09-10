@@ -50,7 +50,7 @@ export default function setupAttendanceInPostRoutes(app: Express) {
         locationName,
         inTimeTimestamp: new Date(),
         outTimeTimestamp: null,
-        inTimeImageCaptured: inTimeImageCaptured || false,
+        inTimeImageCaptured: inTimeImageCaptured ?? false,
         outTimeImageCaptured: false,
         inTimeImageUrl: inTimeImageUrl || null,
         outTimeImageUrl: null,

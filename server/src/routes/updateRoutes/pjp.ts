@@ -1,24 +1,24 @@
-// server/src/routes/updateRoutes/dailytask.ts
-// Endpoint for partially updating a Daily Task.
+// server/src/routes/updateRoutes/pjp.ts
+// Endpoint for partially updating a Permanent Journey Plan.
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dailyTasks, insertDailyTaskSchema } from '../../db/schema';
+import { permanentJourneyPlans, insertPermanentJourneyPlanSchema } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 // Create a partial schema for validation. This allows any subset of fields to be sent.
-const dailyTaskUpdateSchema = insertDailyTaskSchema.partial();
+const pjpUpdateSchema = insertPermanentJourneyPlanSchema.partial();
 
-export default function setupDailyTaskPatchRoutes(app: Express) {
+export default function setupPjpPatchRoutes(app: Express) {
   
-  // PATCH /api/daily-tasks/:id
-  app.patch('/api/daily-tasks/:id', async (req: Request, res: Response) => {
+  // PATCH /api/pjp/:id
+  app.patch('/api/pjp/:id', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       
       // 1. Validate the incoming data against the partial schema
-      const validatedData = dailyTaskUpdateSchema.parse(req.body);
+      const validatedData = pjpUpdateSchema.parse(req.body);
 
       // If the body is empty, there's nothing to update.
       if (Object.keys(validatedData).length === 0) {
@@ -28,30 +28,30 @@ export default function setupDailyTaskPatchRoutes(app: Express) {
         });
       }
 
-      // 2. Check if the task exists before trying to update
-      const [existingTask] = await db.select().from(dailyTasks).where(eq(dailyTasks.id, id)).limit(1);
+      // 2. Check if the PJP exists before trying to update
+      const [existingPjp] = await db.select().from(permanentJourneyPlans).where(eq(permanentJourneyPlans.id, id)).limit(1);
 
-      if (!existingTask) {
+      if (!existingPjp) {
         return res.status(404).json({
           success: false,
-          error: `Daily Task with ID '${id}' not found.`,
+          error: `Permanent Journey Plan with ID '${id}' not found.`,
         });
       }
 
       // 3. Perform the update
-      const [updatedTask] = await db
-        .update(dailyTasks)
+      const [updatedPjp] = await db
+        .update(permanentJourneyPlans)
         .set({
           ...validatedData,
           updatedAt: new Date(), // Automatically update the timestamp
         })
-        .where(eq(dailyTasks.id, id))
+        .where(eq(permanentJourneyPlans.id, id))
         .returning();
 
       res.json({
         success: true,
-        message: 'Daily Task updated successfully',
-        data: updatedTask,
+        message: 'Permanent Journey Plan updated successfully',
+        data: updatedPjp,
       });
 
     } catch (error) {
@@ -64,14 +64,14 @@ export default function setupDailyTaskPatchRoutes(app: Express) {
         });
       }
       
-      console.error('Update Daily Task error:', error);
+      console.error('Update PJP error:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to update Daily Task',
+        error: 'Failed to update Permanent Journey Plan',
         details: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   });
 
-  console.log('✅ Daily Tasks PATCH endpoints setup complete');
+  console.log('✅ PJP PATCH endpoints setup complete');
 }

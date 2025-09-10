@@ -50,7 +50,7 @@ function createAutoCRUD(app: Express, config: {
 
 export default function setupPermanentJourneyPlansPostRoutes(app: Express) {
   createAutoCRUD(app, {
-    endpoint: 'permanent-journey-plans',
+    endpoint: 'pjp',
     table: permanentJourneyPlans,
     schema: insertPermanentJourneyPlanSchema,
     tableName: 'Permanent Journey Plan',

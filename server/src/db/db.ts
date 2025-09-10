@@ -46,17 +46,17 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // Graceful shutdown (don’t leave sockets hanging)
-let shuttingDown = false;
-async function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  try {
-    await pool.end();
-  } catch {
-    // swallow; nothing heroic to do here
-  }
-}
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+// let shuttingDown = false;
+// async function shutdown() {
+//   if (shuttingDown) return;
+//   shuttingDown = true;
+//   try {
+//     await pool.end();
+//   } catch {
+//     // swallow; nothing heroic to do here
+//   }
+// }
+// process.on("SIGINT", shutdown);
+// process.on("SIGTERM", shutdown);
 
 export { db, pool, schema };

@@ -1,24 +1,24 @@
-// server/src/routes/updateRoutes/dailytask.ts
-// Endpoint for partially updating a Daily Task.
+// server/src/routes/updateRoutes/dealers.ts
+// Endpoint for partially updating a dealer's information.
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dailyTasks, insertDailyTaskSchema } from '../../db/schema';
+import { dealers, insertDealerSchema } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 // Create a partial schema for validation. This allows any subset of fields to be sent.
-const dailyTaskUpdateSchema = insertDailyTaskSchema.partial();
+const dealerUpdateSchema = insertDealerSchema.partial();
 
-export default function setupDailyTaskPatchRoutes(app: Express) {
+export default function setupDealersPatchRoutes(app: Express) {
   
-  // PATCH /api/daily-tasks/:id
-  app.patch('/api/daily-tasks/:id', async (req: Request, res: Response) => {
+  // PATCH /api/dealers/:id
+  app.patch('/api/dealers/:id', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       
       // 1. Validate the incoming data against the partial schema
-      const validatedData = dailyTaskUpdateSchema.parse(req.body);
+      const validatedData = dealerUpdateSchema.parse(req.body);
 
       // If the body is empty, there's nothing to update.
       if (Object.keys(validatedData).length === 0) {
@@ -28,30 +28,30 @@ export default function setupDailyTaskPatchRoutes(app: Express) {
         });
       }
 
-      // 2. Check if the task exists before trying to update
-      const [existingTask] = await db.select().from(dailyTasks).where(eq(dailyTasks.id, id)).limit(1);
+      // 2. Check if the dealer exists before trying to update
+      const [existingDealer] = await db.select().from(dealers).where(eq(dealers.id, id)).limit(1);
 
-      if (!existingTask) {
+      if (!existingDealer) {
         return res.status(404).json({
           success: false,
-          error: `Daily Task with ID '${id}' not found.`,
+          error: `Dealer with ID '${id}' not found.`,
         });
       }
 
       // 3. Perform the update
-      const [updatedTask] = await db
-        .update(dailyTasks)
+      const [updatedDealer] = await db
+        .update(dealers)
         .set({
           ...validatedData,
           updatedAt: new Date(), // Automatically update the timestamp
         })
-        .where(eq(dailyTasks.id, id))
+        .where(eq(dealers.id, id))
         .returning();
 
       res.json({
         success: true,
-        message: 'Daily Task updated successfully',
-        data: updatedTask,
+        message: 'Dealer updated successfully',
+        data: updatedDealer,
       });
 
     } catch (error) {
@@ -64,14 +64,14 @@ export default function setupDailyTaskPatchRoutes(app: Express) {
         });
       }
       
-      console.error('Update Daily Task error:', error);
+      console.error('Update Dealer error:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to update Daily Task',
+        error: 'Failed to update dealer',
         details: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   });
 
-  console.log('✅ Daily Tasks PATCH endpoints setup complete');
+  console.log('✅ Dealers PATCH endpoints setup complete');
 }

@@ -157,7 +157,7 @@ export const dealers = pgTable("dealers", {
 
 // ------------------------- salesman_attendance -------------------------
 export const salesmanAttendance = pgTable("salesman_attendance", {
-  id: varchar("id", { length: 255 }).primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id", { length: 255 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   attendanceDate: date("attendance_date").notNull(),
   locationName: varchar("location_name", { length: 500 }).notNull(),
@@ -201,15 +201,15 @@ export const salesmanLeaveApplications = pgTable("salesman_leave_applications", 
   index("idx_salesman_leave_applications_user_id").on(t.userId),
 ]);
 
-// ------------------------- client_reports -------------------------
+// ------------------------- client_reports (Updated to match Neon DB) -------------------------
 export const clientReports = pgTable("client_reports", {
   id: varchar("id", { length: 255 }).primaryKey().default(sql`substr(replace(cast(gen_random_uuid() as text),'-',''),1,25)`),
   dealerType: text("dealerType").notNull(),
   dealerSubDealerName: text("dealer_sub_dealer_name").notNull(),
   location: text("location").notNull(),
   typeBestNonBest: text("type_best_non_best").notNull(),
-  dealerTotalPotential: numeric("dealer_total_potential", { precision: 10, scale: 2 }).notNull(),
-  dealerBestPotential: numeric("dealer_best_potential", { precision: 10, scale: 2 }).notNull(),
+  dealerTotalPotential: numeric("dealerTotalPotential", { precision: 10, scale: 2 }).notNull(),
+  dealerBestPotential: numeric("dealerBestPotential", { precision: 10, scale: 2 }).notNull(),
   brandSelling: text("brandSelling").array().notNull(),
   contactPerson: text("contactPerson").notNull(),
   contactPersonPhoneNo: text("contact_person_phone_no").notNull(),
@@ -379,6 +379,7 @@ export const dealerBrandMapping = pgTable("dealer_brand_mapping", {
 }, (t) => [
   uniqueIndex("dealer_brand_mapping_dealer_id_brand_id_unique").on(t.dealerId, t.brandId),
 ]);
+
 //-------------------------- salesOrder---------------------------------------
 export const salesOrders = pgTable("sales_orders", {
   id: varchar("id", { length: 255 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -386,10 +387,10 @@ export const salesOrders = pgTable("sales_orders", {
   dealerId: varchar("dealer_id", { length: 255 }).references(() => dealers.id, { onDelete: "set null" }),
   quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
   unit: varchar("unit", { length: 50 }).notNull(),
-  orderTotal: numeric("order_total", { precision: 12, scale: 2 }).notNull(),
-  advancePayment: numeric("advance_payment", { precision: 12, scale: 2 }).notNull(),
-  pendingPayment: numeric("pending_payment", { precision: 12, scale: 2 }).notNull(),
-  estimatedDelivery: date("estimated_delivery").notNull(),
+  orderTotal: numeric("orderTotal", { precision: 12, scale: 2 }).notNull(),
+  advancePayment: numeric("advancePayment", { precision: 12, scale: 2 }).notNull(),
+  pendingPayment: numeric("pendingPayment", { precision: 12, scale: 2 }).notNull(),
+  estimatedDelivery: date("estimatedDelivery").notNull(),
   remarks: varchar("remarks", { length: 500 }),
   createdAt: timestamp("created_at", { withTimezone: true, precision: 6 }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, precision: 6 }).defaultNow().notNull(),
