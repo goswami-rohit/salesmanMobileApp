@@ -32,8 +32,8 @@ const DealerSchema = z.object({
   brandSelling: z.array(z.string()).min(1, "Select at least one brand"),
   feedbacks: z.string().min(1, "Feedback is required"),
   remarks: z.string().optional(),
-  latitude: z.number().refine(val => val !== 0, "Please capture location"),
-  longitude: z.number().refine(val => val !== 0, "Please capture location"),
+  latitude: z.coerce.number().optional().nullable(),
+  longitude: z.coerce.number().optional().nullable(),
 }).refine(data => !data.isSubDealer || (data.isSubDealer && data.parentDealerId), {
   message: "Parent dealer is required for sub-dealers",
   path: ["parentDealerId"],
@@ -67,8 +67,8 @@ export default function AddDealerForm() {
       brandSelling: [] as string[],
       feedbacks: '',
       remarks: '',
-      latitude: 0,
-      longitude: 0,
+      latitude: null,
+      longitude: null,
     },
   });
 
@@ -245,12 +245,15 @@ export default function AddDealerForm() {
           </View>
         )} />
 
+        {/* --- Updated Geolocation Section --- */}
         <View className="flex-row gap-4">
-          <Controller control={control} name="latitude" render={({ field: { value } }) => (<TextInput label="Latitude *" value={String(value || '')} editable={false} className="flex-1 mb-4" error={!!errors.latitude} />)} />
-          <Controller control={control} name="longitude" render={({ field: { value } }) => (<TextInput label="Longitude *" value={String(value || '')} editable={false} className="flex-1 mb-4" error={!!errors.longitude} />)} />
+          <Controller control={control} name="latitude" render={({ field: { value } }) => (<TextInput label="Latitude" value={value ? String(value) : ''} editable={false} className="flex-1 mb-4" />)} />
+          <Controller control={control} name="longitude" render={({ field: { value } }) => (<TextInput label="Longitude" value={value ? String(value) : ''} editable={false} className="flex-1 mb-4" />)} />
         </View>
-        <Button icon="crosshairs-gps" mode="outlined" onPress={useMyLocation} loading={isLoadingLocation} className="mb-4"> Use My Location </Button>
-        {errors.latitude && <HelperText type="error" className="-mt-4 mb-4">{errors.latitude.message}</HelperText>}
+        <Button icon="crosshairs-gps" mode="outlined" onPress={useMyLocation} loading={isLoadingLocation} disabled={isLoadingLocation} className="mb-4">
+          {isLoadingLocation ? 'Fetching Location...' : 'Use My Current Location'}
+        </Button>
+        {/* --- End Updated Section --- */}
 
         <View className="flex-row gap-4">
           <Controller control={control} name="totalPotential" render={({ field: { onChange, onBlur, value } }) => (

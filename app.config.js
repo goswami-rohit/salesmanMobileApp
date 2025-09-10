@@ -28,7 +28,9 @@ module.exports = ({ config }) => {
     },
     android: {
       package: "com.rohitgoswami.salesmanmobileapp", // REQUIRED: set your package name here
-      permissions: ["CAMERA", "ACCESS_FINE_LOCATION"]
+      permissions: ["CAMERA", 
+        "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION"
+      ]
     },
     ios: {
       bundleIdentifier: "com.rohitgoswami.salesmanmobileapp", // & REQUIRED set your package name here
@@ -41,6 +43,8 @@ module.exports = ({ config }) => {
         NSCameraUsageDescription: "App needs camera access to take check-in photos."
       }
     },
-    plugins: [],
+    plugins: [
+      "@radar/react-native-radar",
+    ],
   };
 };

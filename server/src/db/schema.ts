@@ -141,6 +141,8 @@ export const dealers = pgTable("dealers", {
   phoneNo: varchar("phone_no", { length: 20 }).notNull(),
   address: varchar("address", { length: 500 }).notNull(),
   pinCode: varchar("pinCode", { length: 20 }),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
   dateOfBirth: date("dateOfBirth"),
   anniversaryDate: date("anniversaryDate"),
   totalPotential: numeric("total_potential", { precision: 10, scale: 2 }).notNull(),
