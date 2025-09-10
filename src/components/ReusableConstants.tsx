@@ -78,16 +78,17 @@ export interface AppState {
   setData: (k: string, data: any) => void
   setUIState: (k: string, v: any) => void
   resetModals: () => void
+  reset: () => void
 }
 
-export const useAppStore = create<AppState>((set) => ({
+// Define the initial state separately so it can be reused by the reset function for LOGOUT
+const initialState = {
   user: null,
-  currentPage: "home",
-  attendanceStatus: "out",
+  currentPage: "home" as AppState["currentPage"],
+  attendanceStatus: "out" as AppState["attendanceStatus"],
   isLoading: false,
   isOnline: true,
   lastSync: null,
-
   dailyTasks: [],
   pjps: [],
   dealers: [],
@@ -111,11 +112,14 @@ export const useAppStore = create<AppState>((set) => ({
     totalDealers: 0,
     totalReports: 0
   },
-
   showCreateModal: false,
-  createType: "task",
+  createType: "task" as AppState["createType"],
   selectedItem: null,
   showDetailModal: false,
+};
+
+export const useAppStore = create<AppState>((set) => ({
+  ...initialState,
 
   setUser: (user) => set({ user }),
   setCurrentPage: (currentPage) => set({ currentPage }),
@@ -126,6 +130,7 @@ export const useAppStore = create<AppState>((set) => ({
   setData: (key, data) => set({ [key]: data } as any),
   setUIState: (key, value) => set({ [key]: value } as any),
   resetModals: () => set({ showCreateModal: false, showDetailModal: false, selectedItem: null }),
+  reset: () => set(initialState),
 }))
 
 

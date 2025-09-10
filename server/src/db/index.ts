@@ -8,6 +8,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 import setupAuthRoutes from '../routes/auth';  // NEW
 import setupUsersRoutes from '../routes/users'; // NEW
 import setupCompaniesRoutes from '../routes/companies'; // NEW2
+import setupLogoutAuthRoutes from '../routes/logout'; // NEW2
 import setupBrandsAndMappingRoutes from '../routes/dataFetchingRoutes/brandMappingFetch';
 import setupClientReportsRoutes from '../routes/dataFetchingRoutes/clientReports';
 import setupCollectionReportsRoutes from '../routes/dataFetchingRoutes/collectionReports';
@@ -116,6 +117,7 @@ console.log('🔌 Registering API routes...');
 setupAuthRoutes(app);                    // /api/auth/login, /api/user/:id
 setupUsersRoutes(app);                   // /api/users/*
 setupCompaniesRoutes(app);                // /api/companies
+setupLogoutAuthRoutes(app);               // /api/auth/logout
 
 // Core Data Endpoints (GET)
 setupBrandsAndMappingRoutes(app);        // /api/brands/*, /api/dealer-brand-mapping/*

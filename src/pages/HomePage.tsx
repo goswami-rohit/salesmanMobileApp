@@ -1,10 +1,10 @@
 // src/pages/HomePage.tsx 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { SafeAreaView, ScrollView, View, TouchableOpacity, RefreshControl } from 'react-native';
+import { SafeAreaView, ScrollView, View, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { Avatar, Button, Card, Text, ActivityIndicator, IconButton, Modal, Portal, Chip } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, StackActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
@@ -211,7 +211,7 @@ const DealersTab = () => <View><Text className="p-4 text-center">Dealers Content
 // --- Main HomeScreen Component ---
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<HomePageParamList>>();
-  const { user, setUser, attendanceStatus, dashboardStats } = useAppStore();
+  const { user, setUser, attendanceStatus, dashboardStats, reset } = useAppStore();
   const { fetchAllData, isRefreshing } = useAPIActions();
 
   const [openIn, setOpenIn] = useState(false);
@@ -274,7 +274,40 @@ export default function HomeScreen() {
     return () => { mounted = false; };
   }, [user]);
 
-  const handleLogout = async () => { /* ... (same as before) ... */ };
+  const handleLogout = async () => {
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to log out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // 1. Call backend logout endpoint (best practice)
+              await fetch(`${BASE_URL}/api/auth/logout`, { method: 'POST' });
+
+              // 2. Clear sensitive data from local storage
+              await AsyncStorage.removeItem("isAuthenticated");
+              await AsyncStorage.removeItem("userId");
+
+              // 3. Reset the global Zustand store to clear any user data
+              reset();
+
+              // 4. Force navigation back to the Login screen by replacing the stack
+              navigation.dispatch(StackActions.replace('Login'));
+
+            } catch (error) {
+              console.error("Logout failed:", error);
+              Toast.show({ type: 'error', text1: 'Logout failed. Please try again.' });
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const onRefresh = useCallback(() => { if (user?.id) fetchAllData(String(user.id)); }, [user, fetchAllData]);
   const initials = `${user?.firstName?.charAt(0) || ''}${user?.lastName?.charAt(0) || ''}`;
 

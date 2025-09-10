@@ -5,7 +5,7 @@ import { Request, Response, Express } from 'express';
 import { db } from '../db/db';
 import { users, companies, insertUserSchema } from '../db/schema';
 import { eq, and, desc, like } from 'drizzle-orm';
-import { z } from 'zod';
+import { z, ZodType } from 'zod';
 
 // Helper function to safely convert BigInt to JSON
 function toJsonSafe(obj: any): any {
@@ -38,35 +38,35 @@ function createAutoCRUD(app: Express, config: {
 
       // Filter by role
       if (role) {
-        whereCondition = whereCondition 
+        whereCondition = whereCondition
           ? and(whereCondition, eq(table.role, role as string))
           : eq(table.role, role as string);
       }
 
       // Filter by region
       if (region) {
-        whereCondition = whereCondition 
+        whereCondition = whereCondition
           ? and(whereCondition, eq(table.region, region as string))
           : eq(table.region, region as string);
       }
 
       // Filter by area
       if (area) {
-        whereCondition = whereCondition 
+        whereCondition = whereCondition
           ? and(whereCondition, eq(table.area, area as string))
           : eq(table.area, area as string);
       }
 
       // Filter by status
       if (status) {
-        whereCondition = whereCondition 
+        whereCondition = whereCondition
           ? and(whereCondition, eq(table.status, status as string))
           : eq(table.status, status as string);
       }
 
       // Filter by companyId
       if (companyId) {
-        whereCondition = whereCondition 
+        whereCondition = whereCondition
           ? and(whereCondition, eq(table.companyId, parseInt(companyId as string)))
           : eq(table.companyId, parseInt(companyId as string));
       }
@@ -86,7 +86,8 @@ function createAutoCRUD(app: Express, config: {
         }
       });
 
-      let query = db.select({
+      // 1. Create a base query that selects your fields.
+      const baseQuery = db.select({
         id: table.id,
         email: table.email,
         firstName: table.firstName,
@@ -102,11 +103,18 @@ function createAutoCRUD(app: Express, config: {
         createdAt: table.createdAt,
         updatedAt: table.updatedAt,
       }).from(table);
-      
+
+      // 2. Use the .$dynamic() helper to create a version of the query
+      //    that TypeScript will allow you to modify conditionally.
+      let query = baseQuery.$dynamic();
+
+      // 3. Apply the where clause only if it exists.
+      //    This reassignment now works because of .$dynamic().
       if (whereCondition) {
         query = query.where(whereCondition);
       }
 
+      // 4. Chain the final methods and execute the query.
       const records = await query
         .orderBy(desc(table.createdAt))
         .limit(parseInt(limit as string));
@@ -128,7 +136,7 @@ function createAutoCRUD(app: Express, config: {
       const { companyId } = req.params;
       const { limit = '50', role, region, area, status } = req.query;
 
-      let whereCondition = eq(table.companyId, parseInt(companyId));
+      let whereCondition: any = eq(table.companyId, parseInt(companyId));
 
       if (role) {
         whereCondition = and(whereCondition, eq(table.role, role as string));
@@ -219,7 +227,7 @@ function createAutoCRUD(app: Express, config: {
       const { role } = req.params;
       const { limit = '50', companyId, region, area, status } = req.query;
 
-      let whereCondition = eq(table.role, role);
+      let whereCondition: any = eq(table.role, role);
 
       if (companyId) {
         whereCondition = and(whereCondition, eq(table.companyId, parseInt(companyId as string)));
@@ -271,7 +279,7 @@ function createAutoCRUD(app: Express, config: {
       const { region } = req.params;
       const { limit = '50', companyId, role, area, status } = req.query;
 
-      let whereCondition = eq(table.region, region);
+      let whereCondition: any = eq(table.region, region);
 
       if (companyId) {
         whereCondition = and(whereCondition, eq(table.companyId, parseInt(companyId as string)));
@@ -325,10 +333,10 @@ export default function setupUsersRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'users',
     table: users,
-    schema: insertUserSchema,
-    tableName: 'User'
+    schema: insertUserSchema as ZodType<any>,
+    tableName: 'User',
     // No auto fields or date fields needed
   });
-  
+
   console.log('✅ Users GET endpoints setup complete');
 }
