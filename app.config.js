@@ -28,7 +28,7 @@ module.exports = ({ config }) => {
     },
     android: {
       package: "com.rohitgoswami.salesmanmobileapp", // REQUIRED: set your package name here
-      permissions: ["CAMERA", 
+      permissions: ["CAMERA",
         "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION"
       ]
     },
@@ -44,7 +44,14 @@ module.exports = ({ config }) => {
       }
     },
     plugins: [
-      "@radar/react-native-radar",
+      "react-native-radar",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUseUsageDescription": "Allow app to use your location for journey tracking.",
+          "locationWhenInUseUsageDescription": "Allow app to use your location for journey tracking."
+        }
+      ]
     ],
   };
 };

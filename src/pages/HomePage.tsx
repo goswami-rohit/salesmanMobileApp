@@ -1,492 +1,723 @@
-// src/pages/HomePage.tsx 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { SafeAreaView, ScrollView, View, TouchableOpacity, RefreshControl, Alert } from 'react-native';
-import { Avatar, Button, Card, Text, ActivityIndicator, IconButton, Modal, Portal, Chip } from 'react-native-paper';
+// src/pages/HomePage.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
+  StatusBar,
+  Image,
+  RefreshControl,
+  Alert
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Image } from 'react-native';
-import { useNavigation, StackActions } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
-import Toast from 'react-native-toast-message';
-import { format } from 'date-fns';
-import companyLogo from '../assets/best-cement-copy.png';
 
-// Forms for Modals and Navigation
-import AddDealerForm from './forms/AddDealerForm';
-import AddPJPForm from './forms/AddPJPForm';
-import AttendanceInForm from './forms/AttendanceInForm';
-import AttendanceOutForm from './forms/AttendanceOutForm';
-import CompetitionReportForm from './forms/CompetitionReportForm';
-import DVRForm from './forms/DVRForm';
-import SalesOrderForm from './forms/SalesOrderForm';
-import TVRForm from './forms/TVRForm';
+const { width, height } = Dimensions.get('window');
 
-// Zustand Store and Reusable Components
-import { useAppStore, fetchCompanyByUserId, LoadingList, BASE_URL } from '../components/ReusableConstants';
+// Types
+interface PJP {
+  id: string;
+  userId: number;
+  createdById: number;
+  planDate: string;
+  areaToBeVisited: string;
+  description?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  tasks?: Task[];
+  timeSlot: string;
+  nextLocation?: string;
+  transitTime?: string;
+  distance?: string;
+}
 
-// FIX: Define all your screen names here for type-safe navigation
-export type HomePageParamList = {
-  Login: undefined;
-  HomeScreen: undefined;
-  DVRForm: undefined;
-  TVRForm: undefined;
-  SalesOrderForm: undefined;
-  AddDealerForm: undefined;
-  AddPJPForm: undefined;
-  CollectionForm: undefined;
-  // Add any other screen names
-};
-
-// FIX: Define the shape of your Task object
 interface Task {
-  id: string | number;
-  status: 'Completed' | 'Pending' | string;
+  id: string;
   description: string;
-  siteName?: string;
-  visitType?: string;
-  taskDate?: string | Date;
+  status: 'Completed' | 'Pending';
 }
 
-// FIX: Define props for your helper components
-interface TaskCardProps {
-  task: Task;
-  onComplete: (taskId: string) => void;
-  onDelete: (taskId: string) => void;
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  companyName: string;
 }
 
-interface ActionButtonProps {
-  iconName: string;
-  label: string;
-  screenName: keyof HomePageParamList; // Use keys from your param list
-}
+// Mock Store Hook
+const useAppStore = () => {
+  const [attendanceStatus, setAttendanceStatus] = useState<'in' | 'out'>('out');
+  
+  const mockUser: User = {
+    id: '1',
+    firstName: 'Agent',
+    lastName: 'rez haa',
+    email: 'agent@cement.com',
+    companyName: 'Cement Company'
+  };
 
-// 1. API Actions Hook (Adapted for React Native)
-const useAPIActions = () => {
-  const { setData, user, setUser } = useAppStore();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const apiCall = useCallback(async (endpoint: string, options: RequestInit = {}) => {
-    try {
-      const resp = await fetch(`${BASE_URL}${endpoint}`, {
-        headers: { 'Content-Type': 'application/json', ...options.headers },
-        ...options,
-      });
-      if (!resp.ok) {
-        // try to parse JSON error but fallback to text
-        let errBody;
-        try { errBody = await resp.json(); } catch { errBody = await resp.text().catch(() => null); }
-        throw new Error(errBody?.error || `${resp.status} ${resp.statusText}`);
-      }
-      return await resp.json();
-    } catch (error) {
-      console.error(`API call failed for ${endpoint}:`, error);
-      throw error;
+  const mockPJPs: PJP[] = [
+    {
+      id: '1',
+      userId: 1,
+      createdById: 1,
+      planDate: new Date().toISOString(),
+      areaToBeVisited: 'Hari Hardware',
+      description: 'Hardware store visit for competitor analysis and product pricing',
+      status: 'in_progress',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      tasks: [
+        { id: '1', description: 'Competitor report', status: 'Completed' },
+        { id: '2', description: 'Photo required', status: 'Pending' }
+      ],
+      timeSlot: '9:14 AM',
+      nextLocation: 'J.K. Electronics',
+      transitTime: '9:28-9:42',
+      distance: '7km'
+    },
+    {
+      id: '2',
+      userId: 1,
+      createdById: 1,
+      planDate: new Date().toISOString(),
+      areaToBeVisited: 'J.K. Electronics',
+      description: 'Electronics store survey and market research',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      tasks: [
+        { id: '3', description: 'Journey Plan', status: 'Pending' },
+        { id: '4', description: 'Daily Tasks', status: 'Pending' }
+      ],
+      timeSlot: '9:52 AM',
+      distance: '7km'
+    },
+    {
+      id: '3',
+      userId: 1,
+      createdById: 1,
+      planDate: new Date().toISOString(),
+      areaToBeVisited: 'Metro Market',
+      description: 'Market analysis and customer behavior study',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      tasks: [
+        { id: '5', description: 'Customer survey', status: 'Pending' },
+        { id: '6', description: 'Price comparison', status: 'Pending' }
+      ],
+      timeSlot: '11:20 AM',
+      distance: '4km'
     }
-  }, []);
+  ];
 
-  const fetchAllData = useCallback(async (userId: string) => {
-    if (!userId) return;
-    setIsRefreshing(true);
-    try {
-      // 1) fetch user record first and set into store
-      const userResp = await apiCall(`/api/users/${userId}`);
-      if (userResp?.data) {
-        setUser(userResp.data); // IMPORTANT: this avoids the infinite loading
-      }
-
-      // 2) run other requests in parallel (non-blocking)
-      const [
-        tasksRes, pjpsRes, dealersRes, // add other requests here
-      ] = await Promise.allSettled([
-        apiCall(`/api/daily-tasks/user/${userId}`),
-        apiCall(`/api/pjp/user/${userId}`),
-        apiCall(`/api/dealers/user/${userId}`),
-        // ... add more endpoints as required
-      ]);
-
-      if (tasksRes.status === 'fulfilled') setData('dailyTasks', tasksRes.value.data || []);
-      if (pjpsRes.status === 'fulfilled') setData('pjps', pjpsRes.value.data || []);
-      if (dealersRes.status === 'fulfilled') setData('dealers', dealersRes.value.data || []);
-
-      // consider fetching attendance/dashboard stats similarly
-      Toast.show({ type: 'success', text1: 'Data Synced' });
-    } catch (err: any) {
-      console.warn('fetchAllData error', err);
-      Toast.show({ type: 'error', text1: 'Connection Error', text2: err.message });
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [apiCall, setData, setUser]);
-
-  const completeTask = useCallback(async (taskId: string) => {
-    try {
-      await apiCall(`/api/daily-tasks/${taskId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'Completed', completedAt: new Date().toISOString() }),
-      });
-      Toast.show({ type: 'success', text1: 'Task Completed' });
-      if (user?.id) await fetchAllData(String(user.id));
-    } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Error', text2: error.message });
-    }
-  }, [apiCall, fetchAllData, user]);
-
-  return { fetchAllData, completeTask, isRefreshing, user };
+  return {
+    user: mockUser,
+    attendanceStatus,
+    pjps: mockPJPs,
+    setAttendanceStatus
+  };
 };
 
-// 2. TaskCard Component (Recreated for React Native)
-const TaskCard = ({ task, onComplete, onDelete }: TaskCardProps) => {
-  const isCompleted = task.status === 'Completed';
-  return (
-    <Card className={`bg-white border shadow-sm ${isCompleted ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
-      <Card.Content>
-        <View className="flex-row justify-between items-start gap-2">
-          <View className="flex-1">
-            <Text variant="titleMedium" className={`mb-2 ${isCompleted ? 'line-through text-gray-400' : ''}`}>
-              {task.description || 'Daily Task'}
-            </Text>
-            {task.siteName && (
-              <View className="flex-row items-center gap-1 mb-2">
-                <Icon name="map-marker-outline" size={14} color="#888" />
-                <Text variant="bodySmall" className="text-gray-500">{task.siteName}</Text>
-              </View>
-            )}
-            <View className="flex-row flex-wrap items-center gap-2">
-              <Chip icon="briefcase-outline" compact>{task.visitType || "Visit"}</Chip>
-              <Chip compact selected={isCompleted}>{task.status || "Assigned"}</Chip>
-              {task.taskDate && <Text variant="labelSmall" className="text-gray-500">{format(new Date(task.taskDate), 'PP')}</Text>}
-            </View>
-          </View>
-          <View>
-            <IconButton icon={isCompleted ? "check-circle" : "clock-outline"} onPress={() => onComplete(String(task.id))} disabled={isCompleted} />
-            <IconButton icon="trash-can-outline" iconColor="red" onPress={() => onDelete(String(task.id))} />
-          </View>
+// Journey Header Component
+const JourneyHeader: React.FC<{
+  totalTime: string;
+  distance: string;
+  stops: string;
+  forms: string;
+  offlineCount: string;
+}> = ({ totalTime, distance, stops, forms, offlineCount }) => (
+  <LinearGradient
+    colors={['#2D3748', '#4A5568']}
+    style={styles.headerGradient}
+  >
+    <StatusBar barStyle="light-content" backgroundColor="#2D3748" />
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Text style={styles.journeyTitle}>Journey</Text>
+          <Text style={styles.offlineText}>
+            Offline: {offlineCount} items pending sync
+          </Text>
         </View>
-      </Card.Content>
-    </Card>
-  );
-};
+        <Text style={styles.journeyStats}>
+          {totalTime} • {distance} • {stops} stops • {forms} forms
+        </Text>
+      </View>
+    </SafeAreaView>
+  </LinearGradient>
+);
 
-// 3. Action Grid Button Component
-const ActionButton = ({ iconName, label, screenName }: ActionButtonProps) => {
-  const navigation = useNavigation<NativeStackNavigationProp<HomePageParamList>>();
-  return (
-    <TouchableOpacity onPress={() => navigation.navigate(screenName)} className="flex-1 basis-[30%] items-center justify-center p-4 m-1 bg-white rounded-2xl border border-gray-200 shadow-sm">
-      <View className="p-3 bg-blue-100 rounded-full mb-2"><Icon name={iconName} size={24} className="text-blue-600" /></View>
-      <Text variant="labelMedium" className="font-semibold text-center">{label}</Text>
+// Check-in Card Component
+const CheckInCard: React.FC<{
+  location: string;
+  onCheckIn: () => void;
+}> = ({ location, onCheckIn }) => (
+  <View style={styles.checkInCard}>
+    <View style={styles.checkInContent}>
+      <View style={styles.checkInIcon}>
+        <Icon name="map-marker" size={24} color="#64748b" />
+      </View>
+      <View style={styles.checkInText}>
+        <Text style={styles.checkInTitle}>You're near {location}. Check in?</Text>
+      </View>
+      <TouchableOpacity style={styles.checkInButton} onPress={onCheckIn}>
+        <Text style={styles.checkInButtonText}>Check In</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
+
+// Task Item Component
+const TaskItem: React.FC<{
+  task: string;
+  isCompleted: boolean;
+}> = ({ task, isCompleted }) => (
+  <View style={styles.taskItem}>
+    <Text style={styles.taskLabel}>Tasks</Text>
+    <View style={styles.taskRow}>
+      <Text style={[styles.taskText, isCompleted && styles.completedTask]}>
+        {task}
+      </Text>
+      {isCompleted && (
+        <Icon name="check" size={16} color="#10b981" style={styles.taskCheck} />
+      )}
+    </View>
+  </View>
+);
+
+// Photo Section Component
+const PhotoSection: React.FC<{
+  photos?: string[];
+  onAddNote: () => void;
+}> = ({ photos, onAddNote }) => (
+  <View style={styles.photoSection}>
+    <Text style={styles.photoLabel}>Photo required</Text>
+    <View style={styles.photosContainer}>
+      {photos?.map((photo, index) => (
+        <Image key={index} source={{ uri: photo }} style={styles.photoThumbnail} />
+      ))}
+    </View>
+    <TouchableOpacity onPress={onAddNote}>
+      <Text style={styles.addNoteButton}>Add Note</Text>
     </TouchableOpacity>
-  );
-};
+  </View>
+);
 
-// --- Tab Content Components ---
-const TodayTab = () => {
-  // Uses the locally defined hook and component
-  const { dailyTasks, isLoading } = useAppStore();
-  const { completeTask, user } = useAPIActions();
+// Journey Card Component
+const JourneyCard: React.FC<{
+  pjp: PJP;
+  isLast: boolean;
+}> = ({ pjp, isLast }) => {
+  const handleCheckIn = () => {
+    Alert.alert('Check In', `Checking in at ${pjp.areaToBeVisited}`);
+  };
 
-  const todaysTasks = useMemo(() => {
-    const today = new Date().toDateString();
-    return (dailyTasks || []).filter(task => new Date(task.taskDate).toDateString() === today);
-  }, [dailyTasks]);
+  const handleAddNote = () => {
+    Alert.alert('Add Note', 'Add note functionality');
+  };
 
   return (
-    <View className="p-4">
-      {isLoading ? <LoadingList /> : (
-        <View className="space-y-3">
-          {todaysTasks.length > 0 ? (
-            todaysTasks.map(task => <TaskCard key={task.id} task={task} onComplete={completeTask} onDelete={() => { }} />)
-          ) : (
-            <Text className="text-center text-gray-500 mt-8">No tasks for today.</Text>
+    <View style={styles.journeyCardContainer}>
+      {/* Timeline dot and line */}
+      <View style={styles.timelineContainer}>
+        <View style={[
+          styles.timelineDot, 
+          pjp.status === 'in_progress' && styles.activeTimelineDot,
+          pjp.status === 'completed' && styles.completedTimelineDot
+        ]} />
+        {!isLast && <View style={styles.timelineLine} />}
+      </View>
+
+      {/* Card Content */}
+      <View style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.timeSlot}>{pjp.timeSlot}</Text>
+          {pjp.distance && (
+            <Text style={styles.distance}>{pjp.distance}</Text>
           )}
         </View>
-      )}
+
+        <Text style={styles.locationTitle}>{pjp.areaToBeVisited}</Text>
+
+        {/* Tasks */}
+        {pjp.tasks?.map((task) => (
+          <TaskItem 
+            key={task.id} 
+            task={task.description} 
+            isCompleted={task.status === 'Completed'} 
+          />
+        ))}
+
+        {/* Photo Section for first card */}
+        {pjp.id === '1' && (
+          <PhotoSection 
+            photos={['https://via.placeholder.com/80x60/8B5CF6/FFFFFF?text=Photo1', 'https://via.placeholder.com/80x60/8B5CF6/FFFFFF?text=Photo2']}
+            onAddNote={handleAddNote}
+          />
+        )}
+
+        {/* Transit info */}
+        {pjp.transitTime && (
+          <View style={styles.transitInfo}>
+            <Text style={styles.transitText}>{pjp.transitTime} Transit</Text>
+            <View style={styles.transitLine}>
+              <Icon name="map" size={20} color="#3b82f6" />
+            </View>
+          </View>
+        )}
+      </View>
     </View>
   );
 };
-const PjpsTab = () => <View><Text className="p-4 text-center">PJP Content</Text></View>;
-const DealersTab = () => <View><Text className="p-4 text-center">Dealers Content</Text></View>;
-// others...
 
-// --- Main HomeScreen Component ---
-export default function HomeScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<HomePageParamList>>();
-  const { user, setUser, attendanceStatus, dashboardStats, reset } = useAppStore();
-  const { fetchAllData, isRefreshing } = useAPIActions();
+// Attendance Section Component
+const AttendanceSection: React.FC<{
+  attendanceStatus: 'in' | 'out';
+  onPunchIn: () => void;
+  onPunchOut: () => void;
+}> = ({ attendanceStatus, onPunchIn, onPunchOut }) => (
+  <View style={styles.attendanceSection}>
+    <View style={styles.attendanceContent}>
+      <View style={styles.attendanceStatus}>
+        <View style={[
+          styles.attendanceIndicator,
+          attendanceStatus === 'in' ? styles.onDuty : styles.offDuty
+        ]} />
+        <Text style={styles.attendanceText}>
+          {attendanceStatus === 'in' ? 'ON DUTY' : 'OFF DUTY'}
+        </Text>
+      </View>
+      
+      <View style={styles.punchButtons}>
+        <TouchableOpacity 
+          style={[
+            styles.punchButton,
+            attendanceStatus === 'out' ? styles.punchInActive : styles.punchButtonDisabled
+          ]}
+          onPress={onPunchIn}
+          disabled={attendanceStatus === 'in'}
+        >
+          <Text style={styles.punchButtonText}>PUNCH IN</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[
+            styles.punchButton,
+            attendanceStatus === 'in' ? styles.punchOutActive : styles.punchButtonDisabled
+          ]}
+          onPress={onPunchOut}
+          disabled={attendanceStatus === 'out'}
+        >
+          <Text style={styles.punchButtonText}>PUNCH OUT</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+);
 
-  const [openIn, setOpenIn] = useState(false);
-  const [openOut, setOpenOut] = useState(false);
+// Main HomePage Component
+export default function HomePage(): React.JSX.Element {
+  const { user, attendanceStatus, pjps, setAttendanceStatus } = useAppStore();
+  const [refreshing, setRefreshing] = useState(false);
 
-  // company info state
-  const [companyName, setCompanyName] = useState<string | null>(null);
-  const [companyLogoUri, setCompanyLogoUri] = useState<string | null>(null);
-  const [companyLoading, setCompanyLoading] = useState(false);
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 2000);
+  }, []);
 
-  const [index, setIndex] = useState(0);
-  const [routes] = useState([
-    { key: 'today', title: 'Today' },
-    { key: 'pjps', title: 'PJP' },
-    { key: 'dealers', title: 'Dealers' },
-  ]);
-
-  const renderScene = SceneMap({ today: TodayTab, pjps: PjpsTab, dealers: DealersTab });
-
-  useEffect(() => {
-    const initializeApp = async () => {
-      const storedUserId = await AsyncStorage.getItem("userId");
-      if (!storedUserId) {
-        navigation.replace('Login');
-        return;
-      }
-      // fetchAllData will fetch the user and other data and call setUser
-      await fetchAllData(storedUserId);
-    };
-    initializeApp();
-  }, [fetchAllData, navigation]);
-
-
-  // Fetch user's company name once user is available
-  useEffect(() => {
-    let mounted = true;
-    const loadCompany = async () => {
-      if (!user?.id) return;
-      setCompanyLoading(true);
-      try {
-        const comp = await fetchCompanyByUserId(Number(user.id));
-        if (!mounted) return;
-        if (comp) {
-          setCompanyName(comp.companyName ?? null);
-          // load LOGO here
-          setCompanyLogoUri(Image.resolveAssetSource(companyLogo).uri);
-        } else {
-          setCompanyName(null);
-          setCompanyLogoUri(null);
-        }
-      } catch (err) {
-        console.warn('Could not fetch company for user:', err);
-        setCompanyName(null);
-        setCompanyLogoUri(null);
-      } finally {
-        if (mounted) setCompanyLoading(false);
-      }
-    };
-    loadCompany();
-    return () => { mounted = false; };
-  }, [user]);
-
-  const handleLogout = async () => {
-    Alert.alert(
-      "Confirm Logout",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // 1. Call backend logout endpoint (best practice)
-              await fetch(`${BASE_URL}/api/auth/logout`, { method: 'POST' });
-
-              // 2. Clear sensitive data from local storage
-              await AsyncStorage.removeItem("isAuthenticated");
-              await AsyncStorage.removeItem("userId");
-
-              // 3. Reset the global Zustand store to clear any user data
-              reset();
-
-              // 4. Force navigation back to the Login screen by replacing the stack
-              navigation.dispatch(StackActions.replace('Login'));
-
-            } catch (error) {
-              console.error("Logout failed:", error);
-              Toast.show({ type: 'error', text1: 'Logout failed. Please try again.' });
-            }
-          }
-        }
-      ]
-    );
+  const handlePunchIn = () => {
+    setAttendanceStatus('in');
+    Alert.alert('Punch In', 'Successfully punched in!');
   };
 
-  const onRefresh = useCallback(() => { if (user?.id) fetchAllData(String(user.id)); }, [user, fetchAllData]);
-  const initials = `${user?.firstName?.charAt(0) || ''}${user?.lastName?.charAt(0) || ''}`;
+  const handlePunchOut = () => {
+    setAttendanceStatus('out');
+    Alert.alert('Punch Out', 'Successfully punched out!');
+  };
 
-  if (!user) {
-    return (
-      <View className="flex-1 items-center justify-center bg-gray-50">
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  const handleCheckIn = (location: string) => {
+    Alert.alert('Check In', `Checking in at ${location}`);
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <ScrollView
+    <View style={styles.container}>
+      {/* Journey Header */}
+      <JourneyHeader 
+        totalTime="9h 20m"
+        distance="18.3 km"
+        stops="11"
+        forms="6"
+        offlineCount="2"
+      />
+
+      <ScrollView 
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        {/* -------- Company Row (fixed at top, above user header) -------- */}
-        <View className="px-4 py-3 bg-white border-b border-gray-200 flex-row items-center">
-          <View className="flex-row items-center gap-3">
-            {/* Round company logo placeholder (will be a round image when you provide one) */}
-            {companyLoading ? (
-              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator size="small" />
-              </View>
-            ) : companyLogoUri ? (
-              <Image
-                source={{ uri: companyLogoUri }}
-                style={{ width: 56, height: 56, borderRadius: 28, resizeMode: 'cover', backgroundColor: '#f3f4f6' }}
-              />
-            ) : (
-              // fallback placeholder (round)
-              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="domain" size={24} color="#475569" />
-              </View>
-            )}
+        {/* Check-in Card */}
+        <CheckInCard 
+          location="Hari Hardware"
+          onCheckIn={() => handleCheckIn('Hari Hardware')}
+        />
 
-            <View>
-              <Text variant="titleSmall" className="font-semibold">
-                {companyName ?? 'Your Company'}
-              </Text>
-              <Text variant="bodySmall" className="text-gray-500">
-                {companyName ? 'Company' : 'No company assigned'}
-              </Text>
-            </View>
-          </View>
-        </View>
+        {/* Attendance Section */}
+        <AttendanceSection 
+          attendanceStatus={attendanceStatus}
+          onPunchIn={handlePunchIn}
+          onPunchOut={handlePunchOut}
+        />
 
-        {/* Header with user's greeting and role */}
-        <View className="flex-row items-center justify-between px-4 py-3">
-          <View className="flex-row items-center gap-3">
-            <Avatar.Text size={44} label={initials} className="bg-blue-600" />
-            <View>
-              <Text variant="bodySmall" className="text-gray-500">Hello,</Text>
-              <Text variant="titleMedium" className="font-bold">{user?.firstName} {user?.lastName}</Text>
-              <Text variant="bodySmall" className="text-gray-500">{user?.role}</Text>
-            </View>
-          </View>
-          <View className="flex-row items-center">
-            <IconButton icon="bell-outline" size={24} />
-            <IconButton icon="logout" size={24} onPress={handleLogout} />
-          </View>
-        </View>
-
-        {/* --- 1. Attendance Card (New Prominent Location) --- */}
-        <View className="px-4 mt-2">
-          <Card className="bg-white" mode="contained">
-            <Card.Content>
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1">
-                  <Text variant="titleMedium" className="font-bold">Daily Attendance</Text>
-                  <Text variant="bodySmall" className="text-gray-500">
-                    Your status is currently:
-                    <Text className={`font-semibold ${attendanceStatus === 'in' ? 'text-green-600' : 'text-red-600'}`}>
-                      {attendanceStatus === 'in' ? ' Punched In' : ' Punched Out'}
-                    </Text>
-                  </Text>
-                </View>
-                <View className="flex-row gap-2">
-                  <Button
-                    mode={attendanceStatus === 'out' ? "contained" : "outlined"}
-                    icon="login"
-                    onPress={() => setOpenIn(true)}
-                    disabled={attendanceStatus === 'in'}
-                    compact
-                  >
-                    In
-                  </Button>
-                  <Button
-                    mode={attendanceStatus === 'in' ? "contained" : "outlined"}
-                    icon="logout"
-                    onPress={() => setOpenOut(true)}
-                    disabled={attendanceStatus === 'out'}
-                    compact
-                    buttonColor={attendanceStatus === 'in' ? '#374151' : undefined} // Dark gray for active punch-out
-                    textColor={attendanceStatus === 'in' ? 'white' : undefined}
-                  >
-                    Out
-                  </Button>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-        </View>
-
-        {/* Quick Actions Grid (same as before) */}
-        <View className="p-4">
-          <Text variant="titleMedium" className="font-bold mb-3">Create New</Text>
-          <View className="flex-row flex-wrap -m-1">
-            <ActionButton iconName="file-document-outline" label="DVR" screenName="DVRForm" />
-            <ActionButton iconName="tools" label="TVR" screenName="TVRForm" />
-            <ActionButton iconName="cart-plus" label="Sales Order" screenName="SalesOrderForm" />
-            <ActionButton iconName="store-plus-outline" label="Add Dealer" screenName="AddDealerForm" />
-            <ActionButton iconName="map-marker-plus-outline" label="Plan PJP" screenName="AddPJPForm" />
-            <ActionButton iconName="cash-plus" label="Collection" screenName="CollectionForm" />
-          </View>
-        </View>
-
-        {/* --- 3. Performance Snapshot --- */}
-        <View className="px-4 mt-6">
-          <Text variant="titleMedium" className="font-bold mb-3">Performance Snapshot</Text>
-          <View className="flex-row gap-4">
-            <Card className="flex-1 bg-blue-50 border border-blue-200">
-              <Card.Content>
-                <Icon name="target" size={24} className="text-blue-600 mb-2" />
-                <Text variant="labelLarge" className="text-blue-900 font-semibold">Today's Tasks</Text>
-                <Text variant="headlineMedium" className="font-bold text-blue-900">{dashboardStats?.todaysTasks || 0}</Text>
-              </Card.Content>
-            </Card>
-            <Card className="flex-1 bg-purple-50 border border-purple-200">
-              <Card.Content>
-                <Icon name="road-variant" size={24} className="text-purple-600 mb-2" />
-                <Text variant="labelLarge" className="text-purple-900 font-semibold">Active PJPs</Text>
-                <Text variant="headlineMedium" className="font-bold text-purple-900">{dashboardStats?.activePJPs || 0}</Text>
-              </Card.Content>
-            </Card>
-          </View>
-        </View>
-
-        {/* --- 4. Detailed Tabs (Refactored with NativeWind) --- */}
-        <View className="mt-6">
-          {/* NOTE: TabView needs a defined height to work inside a ScrollView.
-    Using a NativeWind class here instead of an inline style.
-    'h-auto' might work if the content inside is simple, but a fixed 
-    or calculated height is often more reliable. Let's use flex-1
-    and ensure the parent has a defined height or can flex.
-    For this layout, a fixed height is safer.
-  */}
-          <View className="h-[600px]">
-            <TabView
-              navigationState={{ index, routes }}
-              renderScene={renderScene}
-              onIndexChange={setIndex}
-              renderTabBar={props =>
-                <TabBar
-                  {...props}
-                  style={{ backgroundColor: 'transparent', elevation: 0 }}
-                  indicatorStyle={{ backgroundColor: '#2563eb', height: 3, borderRadius: 3 }}
-                  activeColor="#2563eb"
-                  inactiveColor="#6b7280"
-                />
-              }
+        {/* Journey Cards */}
+        <View style={styles.journeyContainer}>
+          {pjps.map((pjp, index) => (
+            <JourneyCard 
+              key={pjp.id} 
+              pjp={pjp} 
+              isLast={index === pjps.length - 1}
             />
-          </View>
+          ))}
         </View>
 
+        {/* Add Journey Plan Button */}
+        <TouchableOpacity style={styles.addJourneyButton}>
+          <View style={styles.addButtonContent}>
+            <Icon name="plus" size={24} color="#3b82f6" />
+            <Text style={styles.addButtonText}>Journey Plan / Daily Tasks</Text>
+          </View>
+        </TouchableOpacity>
       </ScrollView>
 
-      {/* --- Modals for Punch In/Out (Now using real forms) --- */}
-      <Portal>
-        <Modal visible={openIn} onDismiss={() => setOpenIn(false)} contentContainerStyle={{ backgroundColor: 'white', padding: 20, margin: 20, borderRadius: 12 }}>
-          <AttendanceInForm userId={user.id} onSubmitted={() => { setOpenIn(false); onRefresh(); }} onCancel={() => setOpenIn(false)} />
-        </Modal>
-        <Modal visible={openOut} onDismiss={() => setOpenOut(false)} contentContainerStyle={{ backgroundColor: 'white', padding: 20, margin: 20, borderRadius: 12 }}>
-          <AttendanceOutForm userId={user.id} onSubmitted={() => { setOpenOut(false); onRefresh(); }} onCancel={() => setOpenOut(false)} />
-        </Modal>
-      </Portal>
-
-    </SafeAreaView>
+      {/* Bottom Tab Placeholder */}
+      <View style={styles.bottomTab}>
+        <View style={styles.tabItem}>
+          <Icon name="view-dashboard" size={24} color="#3b82f6" />
+        </View>
+        <View style={styles.tabItem}>
+          <Icon name="clipboard-text" size={24} color="#64748b" />
+        </View>
+        <View style={styles.tabItem}>
+          <Icon name="map" size={24} color="#64748b" />
+        </View>
+        <View style={styles.tabItem}>
+          <Icon name="menu" size={24} color="#64748b" />
+        </View>
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  safeArea: {
+    paddingHorizontal: 16,
+  },
+  headerGradient: {
+    paddingBottom: 16,
+  },
+  header: {
+    paddingTop: 8,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  journeyTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  offlineText: {
+    fontSize: 14,
+    color: '#cbd5e1',
+  },
+  journeyStats: {
+    fontSize: 16,
+    color: '#e2e8f0',
+    fontWeight: '500',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  checkInCard: {
+    backgroundColor: 'white',
+    margin: 16,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  checkInContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkInIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  checkInText: {
+    flex: 1,
+  },
+  checkInTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  checkInButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  checkInButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  attendanceSection: {
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  attendanceContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  attendanceStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  attendanceIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  onDuty: {
+    backgroundColor: '#10b981',
+  },
+  offDuty: {
+    backgroundColor: '#f59e0b',
+  },
+  attendanceText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  punchButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  punchButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  punchInActive: {
+    backgroundColor: '#10b981',
+  },
+  punchOutActive: {
+    backgroundColor: '#ef4444',
+  },
+  punchButtonDisabled: {
+    backgroundColor: '#e2e8f0',
+  },
+  punchButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  journeyContainer: {
+    paddingHorizontal: 16,
+  },
+  journeyCardContainer: {
+    flexDirection: 'row',
+    marginBottom: 24,
+  },
+  timelineContainer: {
+    width: 24,
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#cbd5e1',
+    marginBottom: 8,
+  },
+  activeTimelineDot: {
+    backgroundColor: '#3b82f6',
+  },
+  completedTimelineDot: {
+    backgroundColor: '#10b981',
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: '#e2e8f0',
+  },
+  cardContent: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  timeSlot: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  distance: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  locationTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  taskItem: {
+    marginBottom: 8,
+  },
+  taskLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  taskText: {
+    fontSize: 16,
+    color: '#1e293b',
+    flex: 1,
+  },
+  completedTask: {
+    color: '#10b981',
+  },
+  taskCheck: {
+    marginLeft: 8,
+  },
+  photoSection: {
+    marginTop: 12,
+  },
+  photoLabel: {
+    fontSize: 14,
+    color: '#3b82f6',
+    marginBottom: 8,
+  },
+  photosContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  photoThumbnail: {
+    width: 80,
+    height: 60,
+    borderRadius: 8,
+  },
+  addNoteButton: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  transitInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  transitText: {
+    fontSize: 16,
+    color: '#64748b',
+    marginRight: 12,
+  },
+  transitLine: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  addJourneyButton: {
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginBottom: 24,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    fontSize: 16,
+    color: '#1e293b',
+    marginLeft: 8,
+    fontWeight: '600',
+  },
+  bottomTab: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingBottom: 32,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+});
