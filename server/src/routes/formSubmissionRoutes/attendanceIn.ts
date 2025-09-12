@@ -1,16 +1,34 @@
-//  server/src/routes/postRoutes/attendanceIn.ts 
+// server/src/routes/postRoutes/attendanceIn.ts
 // Attendance Check-In POST endpoints
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
 import { salesmanAttendance } from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
+import { z } from 'zod';
+
+// Zod schema for validation
+const attendanceInSchema = z.object({
+  userId: z.number(),
+  attendanceDate: z.string().date().or(z.string()), // accept Date or ISO string
+  locationName: z.string().min(1),
+  inTimeImageCaptured: z.boolean().optional(),
+  inTimeImageUrl: z.string().optional().nullable(),
+  inTimeLatitude: z.number(),
+  inTimeLongitude: z.number(),
+  inTimeAccuracy: z.number().optional().nullable(),
+  inTimeSpeed: z.number().optional().nullable(),
+  inTimeHeading: z.number().optional().nullable(),
+  inTimeAltitude: z.number().optional().nullable(),
+});
 
 export default function setupAttendanceInPostRoutes(app: Express) {
-  
   // ATTENDANCE CHECK-IN
   app.post('/api/attendance/check-in', async (req: Request, res: Response) => {
     try {
+      // Validate input
+      const parsed = attendanceInSchema.parse(req.body);
+
       const {
         userId,
         attendanceDate,
@@ -22,8 +40,11 @@ export default function setupAttendanceInPostRoutes(app: Express) {
         inTimeAccuracy,
         inTimeSpeed,
         inTimeHeading,
-        inTimeAltitude
-      } = req.body;
+        inTimeAltitude,
+      } = parsed;
+
+      // Ensure attendanceDate is Date
+      const dateObj = new Date(attendanceDate);
 
       // Check if user already checked in today
       const [existingAttendance] = await db
@@ -32,7 +53,7 @@ export default function setupAttendanceInPostRoutes(app: Express) {
         .where(
           and(
             eq(salesmanAttendance.userId, userId),
-            eq(salesmanAttendance.attendanceDate, attendanceDate)
+            eq(salesmanAttendance.attendanceDate, dateObj)
           )
         )
         .limit(1);
@@ -40,13 +61,13 @@ export default function setupAttendanceInPostRoutes(app: Express) {
       if (existingAttendance) {
         return res.status(400).json({
           success: false,
-          error: 'User has already checked in today'
+          error: 'User has already checked in today',
         });
       }
 
       const attendanceData = {
         userId,
-        attendanceDate,
+        attendanceDate: dateObj,
         locationName,
         inTimeTimestamp: new Date(),
         outTimeTimestamp: null,
@@ -67,7 +88,7 @@ export default function setupAttendanceInPostRoutes(app: Express) {
         outTimeHeading: null,
         outTimeAltitude: null,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
 
       const [newAttendance] = await db
@@ -78,15 +99,21 @@ export default function setupAttendanceInPostRoutes(app: Express) {
       res.status(201).json({
         success: true,
         message: 'Check-in successful',
-        data: newAttendance
+        data: newAttendance,
       });
-
     } catch (error) {
       console.error('Attendance check-in error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: error.issues,
+        });
+      }
       res.status(500).json({
         success: false,
         error: 'Failed to check in',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   });

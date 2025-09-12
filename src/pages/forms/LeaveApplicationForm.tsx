@@ -1,7 +1,7 @@
 // src/pages/forms/LeaveApplicationForm.tsx
 import React, { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, Platform, Alert } from 'react-native';
-import { Text, Button, TextInput, HelperText } from 'react-native-paper';
+import { View, ScrollView, TouchableOpacity, Platform, Alert, StyleSheet } from 'react-native';
+import { Text, Button, TextInput, HelperText, useTheme } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,16 +11,16 @@ import { BASE_URL } from '../../components/ReusableConstants';
 
 // --- Schema (Corrected) ---
 const LeaveSchema = z.object({
-    userId: z.number().int().positive(),
-    leaveType: z.string().min(1, "Leave type is required"),
-    startDate: z.date(),
-    endDate: z.date(),
-    reason: z.string().min(5, "Please provide a brief reason"),
-    status: z.literal("pending").optional(),
-  }).refine((data) => data.endDate >= data.startDate, {
-    message: "End date cannot be earlier than start date",
-    path: ["endDate"],
-  });
+  userId: z.number().int().positive(),
+  leaveType: z.string().min(1, "Leave type is required"),
+  startDate: z.date(),
+  endDate: z.date(),
+  reason: z.string().min(5, "Please provide a brief reason"),
+  status: z.literal("pending").optional(),
+}).refine((data) => data.endDate >= data.startDate, {
+  message: "End date cannot be earlier than start date",
+  path: ["endDate"],
+});
 
 export type LeaveFormValues = z.infer<typeof LeaveSchema>;
 
@@ -33,6 +33,7 @@ interface Props {
 
 // --- Component ---
 export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: Props) {
+  const theme = useTheme();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [datePicker, setDatePicker] = useState({ visible: false, field: 'startDate' as 'startDate' | 'endDate' });
 
@@ -79,7 +80,7 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
         endDate: values.endDate.toISOString().split('T')[0],
       };
       
-    const response = await fetch(`${BASE_URL}/api/leave-applications`, {
+      const response = await fetch(`${BASE_URL}/api/leave-applications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(leavePayload),
@@ -90,6 +91,7 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
         throw new Error(result.error || "Failed to submit leave application");
       }
       onSubmitted?.(values);
+      Alert.alert("Success", "Your leave application has been submitted.");
 
     } catch (error: any) {
       console.error("Leave application submission error:", error);
@@ -100,9 +102,9 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16 }}>
-      <Text variant="headlineSmall" className="font-bold text-center mb-1">Request Time Off</Text>
-      <Text variant="bodyMedium" className="text-gray-500 text-center mb-6">Fill in the details for your leave request.</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text variant="headlineSmall" style={styles.headerTitle}>Request Time Off</Text>
+      <Text variant="bodyMedium" style={styles.headerSubtitle}>Fill in the details for your leave request.</Text>
 
       {datePicker.visible && (
         <DateTimePicker
@@ -119,7 +121,7 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
         control={control}
         name="leaveType"
         render={({ field: { onChange, onBlur, value } }) => (
-          <View className="mb-4">
+          <View style={styles.inputContainer}>
             <TextInput
               label="Leave Type (e.g., Sick, Personal)"
               onBlur={onBlur}
@@ -132,15 +134,15 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
         )}
       />
 
-      <View className="flex-row gap-4 mb-4">
+      <View style={styles.dateRow}>
         {/* Start Date */}
-        <View className="flex-1">
+        <View style={styles.dateInputContainer}>
           <TouchableOpacity onPress={() => showDatePicker('startDate')}>
             <TextInput
               label="Start Date"
               value={format(startDate, "PPP")}
               editable={false}
-              right={<TextInput.Icon icon="calendar" />}
+              right={<TextInput.Icon icon="calendar-month" />}
               error={!!errors.startDate}
             />
           </TouchableOpacity>
@@ -148,13 +150,13 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
         </View>
 
         {/* End Date */}
-        <View className="flex-1">
+        <View style={styles.dateInputContainer}>
           <TouchableOpacity onPress={() => showDatePicker('endDate')}>
             <TextInput
               label="End Date"
               value={format(endDate, "PPP")}
               editable={false}
-              right={<TextInput.Icon icon="calendar" />}
+              right={<TextInput.Icon icon="calendar-month" />}
               error={!!errors.endDate}
             />
           </TouchableOpacity>
@@ -166,7 +168,7 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
         control={control}
         name="reason"
         render={({ field: { onChange, onBlur, value } }) => (
-          <View className="mb-4">
+          <View style={styles.inputContainer}>
             <TextInput
               label="Reason"
               onBlur={onBlur}
@@ -182,8 +184,8 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
       />
       
       {/* Action Buttons */}
-      <View className="flex-row gap-4 mt-4">
-        <Button mode="outlined" onPress={onCancel} className="flex-1">
+      <View style={styles.buttonRow}>
+        <Button mode="outlined" onPress={onCancel} style={styles.button}>
           Cancel
         </Button>
         <Button
@@ -191,7 +193,7 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
           onPress={handleSubmit(submit)}
           loading={isSubmitting}
           disabled={!isValid || isSubmitting}
-          className="flex-1"
+          style={styles.button}
         >
           Submit
         </Button>
@@ -199,3 +201,39 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 16,
+  },
+  headerTitle: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  dateInputContainer: {
+    flex: 1,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 16,
+  },
+  button: {
+    flex: 1,
+    padding: 4,
+    borderRadius: 8,
+  },
+});

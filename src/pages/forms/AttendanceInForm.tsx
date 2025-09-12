@@ -1,13 +1,13 @@
 // src/pages/forms/AttendanceInForm.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Image, Alert, } from 'react-native';
+import { View, Image, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, ActivityIndicator } from 'react-native-paper';
+import { Text, Button, ActivityIndicator, useTheme } from 'react-native-paper';
 import * as ImagePicker from "expo-image-picker";
 import * as Location from 'expo-location';
 import Toast from 'react-native-toast-message';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { BASE_URL} from '../../components/ReusableConstants';
+import { BASE_URL } from '../../components/ReusableConstants';
 
 // --- Type Definitions ---
 type Step = 'camera' | 'location' | 'loading';
@@ -19,6 +19,7 @@ interface AttendanceInFormProps {
 
 // --- Component ---
 export default function AttendanceInForm({ userId, onSubmitted, onCancel }: AttendanceInFormProps) {
+  const theme = useTheme();
   const [step, setStep] = useState<Step>('loading');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -39,7 +40,6 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
   }, [onCancel]);
 
   const takePicture = async () => {
-    // This is a simple guard to prevent rapid, accidental double-taps.
     if (step === 'loading') return;
 
     try {
@@ -58,7 +58,6 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
       const pickedUri = result.assets[0].uri;
       setPhotoUri(pickedUri);
 
-      // Proceed to location step
       await fetchLocation();
 
     } catch (err) {
@@ -81,7 +80,7 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
     } catch (err: any) {
       console.error('fetchLocation error', err);
       Alert.alert('Error', err.message || 'Unable to fetch location. Please try again.');
-      setStep('camera'); // Revert to camera step on failure
+      setStep('camera');
     }
   };
 
@@ -91,7 +90,6 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
     }
     setIsSubmitting(true);
 
-    // FormData is required for sending images
     const formData = new FormData();
 
     formData.append('userId', String(userId));
@@ -103,7 +101,6 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
     formData.append('inTimeLongitude', String(location.coords.longitude));
     formData.append('inTimeAccuracy', String(location.coords.accuracy));
 
-    // Append the image file
     formData.append('inTimeImage', {
       uri: photoUri,
       name: 'checkin.jpg',
@@ -136,61 +133,135 @@ export default function AttendanceInForm({ userId, onSubmitted, onCancel }: Atte
 
     if (step === 'camera') {
       return (
-        <>
-          <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-2">Selfie Capture</Text>
-          <Text variant="bodyMedium" className="text-slate-400 text-center mb-6">
+        <View style={styles.contentContainer}>
+          <Text variant="headlineSmall" style={styles.title}>Selfie Capture</Text>
+          <Text variant="bodyMedium" style={styles.subtitle}>
             Please take a clear selfie to mark your attendance.
           </Text>
-          <View className="w-72 h-72 rounded-full bg-slate-800 border-2 border-slate-700 justify-center items-center overflow-hidden mb-6">
-            <View className="flex-1 bg-slate-800 items-center justify-center">
-              <Icon name="camera" size={64} color="#64748b" />
-              <Text className="text-slate-500 mt-2">Tap below to open camera</Text>
+          <View style={styles.photoFrame}>
+            <View style={styles.photoPlaceholder}>
+              <Icon name="camera" size={64} color={theme.colors.onSurface} />
+              <Text style={styles.placeholderText}>Tap below to open camera</Text>
             </View>
           </View>
-          <Button mode="contained" icon="camera" onPress={takePicture} className="w-full p-1">
+          <Button mode="contained" icon="camera" onPress={takePicture} style={styles.button}>
             Capture & Continue
           </Button>
-        </>
+        </View>
       );
     }
 
     if (step === 'location' && photoUri && location) {
       return (
-        <>
-          <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-4">Confirm Details</Text>
-          <Image source={{ uri: photoUri }} className="w-48 h-48 rounded-full mb-6 border-2 border-slate-700" />
-          <Text className="text-slate-400 text-base mb-2">Location Captured:</Text>
-          <Text className="text-slate-200 text-base mb-6 font-semibold">
+        <View style={styles.contentContainer}>
+          <Text variant="headlineSmall" style={styles.title}>Confirm Details</Text>
+          <Image source={{ uri: photoUri }} style={styles.confirmImage} />
+          <Text style={styles.locationLabel}>Location Captured:</Text>
+          <Text style={styles.locationText}>
             Lat: {location.coords.latitude.toFixed(5)}, Lon: {location.coords.longitude.toFixed(5)}
           </Text>
           <Button
             mode="contained"
             onPress={handleSubmit}
-            className="w-full p-1"
+            style={styles.button}
             loading={isSubmitting}
             disabled={isSubmitting}
           >
             Confirm Check-in
           </Button>
-        </>
+        </View>
       );
     }
-
-    // Fallback view in case of an unexpected state
-    return <Text className="text-red-500">Something went wrong. Please cancel and try again.</Text>;
+    
+    return <Text style={styles.fallbackText}>Something went wrong. Please cancel and try again.</Text>;
   };
 
   return (
-    <View className="flex-1 p-4 items-center justify-center bg-slate-900">
+    <View style={[{ backgroundColor: theme.colors.background }, styles.container]}>
       {renderContent()}
       <Button
         onPress={onCancel}
         disabled={isSubmitting}
-        className="absolute bottom-6"
-        textColor="gray"
+        style={styles.cancelButton}
+        textColor={theme.colors.onSurface}
       >
         Cancel
       </Button>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contentContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  title: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  photoFrame: {
+    width: 288,
+    height: 288,
+    borderRadius: 144,
+    backgroundColor: '#374151',
+    borderWidth: 2,
+    borderColor: '#4b5563',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  photoPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    color: '#94a3b8',
+    marginTop: 8,
+  },
+  button: {
+    width: '100%',
+    padding: 4,
+    borderRadius: 8,
+  },
+  confirmImage: {
+    width: 192,
+    height: 192,
+    borderRadius: 96,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: '#4b5563',
+  },
+  locationLabel: {
+    color: '#94a3b8',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  locationText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 24,
+  },
+  cancelButton: {
+    position: 'absolute',
+    bottom: 24,
+  },
+  fallbackText: {
+    color: 'red',
+  },
+});

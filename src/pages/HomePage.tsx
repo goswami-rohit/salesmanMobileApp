@@ -1,426 +1,113 @@
-// src/pages/HomePage.tsx - Single Rotating Flip Clock Design
+// src/pages/HomePage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  View, 
-  ScrollView, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Animated, 
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar as RNStatusBar,
   Dimensions,
-  StatusBar,
   Platform,
-  Vibration,
-  Text
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppStore, BASE_URL } from '../components/ReusableConstants';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { useTheme, Card, Text, Button, Portal, Modal, IconButton, ActivityIndicator } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { isSameDay, format } from 'date-fns';
+import Toast from 'react-native-toast-message';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
-const { width, height } = Dimensions.get('window');
+import { useAppStore, BASE_URL, DrawerStackParamList, MainTabsParamList, PJP } from '../components/ReusableConstants';
+import AttendanceInForm from './forms/AttendanceInForm';
+import AttendanceOutForm from './forms/AttendanceOutForm';
+import AppHeader from '../components/AppHeader';
+import PJPFloatingCard from '../components/PJPFloatingCard'; // FIX: Changed import name
+import MuiIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// Demo PJP Data
-const DEMO_PJPS = [
-  {
-    id: 1,
-    dealerName: "Tech Solutions Hub",
-    dealerAddress: "123 Business District, Tech City",
-    status: "active",
-    latitude: 28.7041,
-    longitude: 77.1025,
-    targetSales: 250000,
-    progressPercentage: 65,
-    priority: "high"
-  },
-  {
-    id: 2,
-    dealerName: "Innovation Center",
-    dealerAddress: "456 Innovation Park, Metro City", 
-    status: "planned",
-    latitude: 28.6139,
-    longitude: 77.2090,
-    targetSales: 180000,
-    progressPercentage: 30,
-    priority: "medium"
-  },
-  {
-    id: 3,
-    dealerName: "Future Electronics",
-    dealerAddress: "789 Digital Avenue, Cyber City",
-    status: "active",
-    latitude: 28.5355,
-    longitude: 77.3910,
-    targetSales: 320000,
-    progressPercentage: 78,
-    priority: "high"
-  }
-];
+const { width } = Dimensions.get('window');
 
-interface DailyTasksBellComponentProps {
-  pendingCount: number;
-  onBellPress: () => void;
-}
 
-const DailyTasksBellComponent: React.FC<DailyTasksBellComponentProps> = ({ pendingCount, onBellPress }) => {
-  const [pulseAnim] = useState(new Animated.Value(1));
-
-  useEffect(() => {
-    if (pendingCount > 0) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    }
-  }, [pendingCount]);
-
-  return (
-    <TouchableOpacity onPress={onBellPress} style={styles.bellContainer}>
-      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-        <LinearGradient
-          colors={pendingCount > 0 ? ['#f59e0b', '#d97706'] : ['#374151', '#4b5563']}
-          style={styles.bellGradient}
-        >
-          <MaterialCommunityIcons 
-            name={pendingCount > 0 ? "bell-ring" : "bell-outline"} 
-            size={22} 
-            color="white" 
-          />
-        </LinearGradient>
-      </Animated.View>
-      {pendingCount > 0 && (
-        <View style={styles.bellBadge}>
-          <Text style={styles.bellBadgeText}>
-            {pendingCount > 99 ? '99+' : pendingCount}
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-};
-
-// SINGLE ROTATING FLIP CLOCK COMPONENT
-const SingleFlipClock = ({ pjps, onCardPress }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [flipAnim] = useState(new Animated.Value(0));
-  const [cardRotation] = useState(new Animated.Value(0));
-  const [isFlipping, setIsFlipping] = useState(false);
-
-  const currentPjp = pjps[currentIndex] || pjps[0];
-
-  useEffect(() => {
-    // Auto-rotate every 4 seconds
-    const interval = setInterval(() => {
-      if (!isFlipping) {
-        flipToNext();
-      }
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [currentIndex, isFlipping]);
-
-  const flipToNext = () => {
-    setIsFlipping(true);
-    
-    // Flip animation
-    Animated.sequence([
-      Animated.timing(cardRotation, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(cardRotation, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setIsFlipping(false);
-    });
-
-    // Change card in the middle of flip
-    setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % pjps.length);
-    }, 300);
-  };
-
-  const flipToPrevious = () => {
-    setIsFlipping(true);
-    
-    Animated.sequence([
-      Animated.timing(cardRotation, {
-        toValue: -1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(cardRotation, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setIsFlipping(false);
-    });
-
-    setTimeout(() => {
-      setCurrentIndex((prev) => (prev - 1 + pjps.length) % pjps.length);
-    }, 300);
-  };
-
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'active': return '#10b981';
-      case 'completed': return '#3b82f6';
-      case 'planned': return '#f59e0b';
-      default: return '#6b7280';
-    }
-  };
-
-  const handleCardPress = () => {
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate();
-    } else {
-      Vibration.vibrate(50);
-    }
-    onCardPress?.(currentPjp);
-  };
-
-  return (
-    <View style={styles.flipClockContainer}>
-      {/* Chrome Frame */}
-      <LinearGradient
-        colors={['#f8fafc', '#e2e8f0', '#cbd5e1', '#94a3b8']}
-        style={styles.chromeFrame}
-      >
-        {/* Chrome Stand */}
-        <View style={styles.chromeStand} />
-        
-        {/* Rotating Card Container */}
-        <TouchableOpacity activeOpacity={0.9} onPress={handleCardPress}>
-          <Animated.View 
-            style={[
-              styles.flipCardContainer,
-              {
-                transform: [
-                  {
-                    rotateX: cardRotation.interpolate({
-                      inputRange: [-1, 0, 1],
-                      outputRange: ['-90deg', '0deg', '90deg'],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            {/* White Flip Card */}
-            <View style={styles.flipCard}>
-              {/* Mission Number Display */}
-              <View style={styles.numberDisplay}>
-                <Text style={styles.missionNumber}>
-                  {String(currentPjp.id).padStart(2, '0')}
-                </Text>
-                <View style={styles.flipHinge} />
-              </View>
-
-              {/* Dealer Name */}
-              <Text style={styles.dealerName}>{currentPjp.dealerName}</Text>
-
-              {/* Progress Display */}
-              <View style={styles.progressDisplay}>
-                <Text style={styles.progressNumber}>
-                  {String(currentPjp.progressPercentage).padStart(2, '0')}
-                </Text>
-                <Text style={styles.percentSign}>%</Text>
-              </View>
-
-              {/* Status Indicator */}
-              <View style={styles.statusContainer}>
-                <View style={[
-                  styles.statusDot, 
-                  { backgroundColor: getStatusColor(currentPjp.status) }
-                ]} />
-                <Text style={[
-                  styles.statusText, 
-                  { color: getStatusColor(currentPjp.status) }
-                ]}>
-                  {currentPjp.status.toUpperCase()}
-                </Text>
-              </View>
-
-              {/* Target Amount */}
-              <View style={styles.targetContainer}>
-                <Text style={styles.targetLabel}>TARGET</Text>
-                <Text style={styles.targetAmount}>
-                  ₹{(currentPjp.targetSales / 1000).toFixed(0)}K
-                </Text>
-              </View>
-
-              {/* Address */}
-              <View style={styles.addressContainer}>
-                <MaterialCommunityIcons name="map-marker" size={12} color="#6b7280" />
-                <Text style={styles.addressText} numberOfLines={1}>
-                  {currentPjp.dealerAddress}
-                </Text>
-              </View>
-            </View>
-          </Animated.View>
-        </TouchableOpacity>
-
-        {/* Chrome Side Arms */}
-        <View style={styles.chromeArmLeft} />
-        <View style={styles.chromeArmRight} />
-      </LinearGradient>
-
-      {/* Navigation Controls */}
-      <View style={styles.controls}>
-        <TouchableOpacity 
-          style={styles.controlButton} 
-          onPress={flipToPrevious}
-          disabled={isFlipping}
-        >
-          <MaterialCommunityIcons name="chevron-left" size={20} color="#06b6d4" />
-        </TouchableOpacity>
-
-        {/* Pagination Dots */}
-        <View style={styles.pagination}>
-          {pjps.map((_, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.paginationDot,
-                {
-                  backgroundColor: index === currentIndex ? '#06b6d4' : '#64748b',
-                  transform: [{ scale: index === currentIndex ? 1.2 : 1 }],
-                }
-              ]}
-              onPress={() => {
-                setCurrentIndex(index);
-                flipToNext();
-              }}
-            />
-          ))}
-        </View>
-
-        <TouchableOpacity 
-          style={styles.controlButton} 
-          onPress={flipToNext}
-          disabled={isFlipping}
-        >
-          <MaterialCommunityIcons name="chevron-right" size={20} color="#06b6d4" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
-const HomePage = () => {
+export default function HomePage() {
+  const theme = useTheme();
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
+  const parentNavigation = useNavigation<NativeStackNavigationProp<DrawerStackParamList>>();
   const { top } = useSafeAreaInsets();
-  const navigation = useNavigation();
-  const {
-    user,
-    attendanceStatus,
-    setAttendanceStatus,
-    dailyTasks,
-    setData,
-    setLoading,
-    isLoading
-  } = useAppStore();
+  const { user, attendanceStatus, setAttendanceStatus, dailyTasks } = useAppStore();
 
-  const [connectionStatus, setConnectionStatus] = useState(true);
-  const [lastSync, setLastSync] = useState(new Date());
-  const [headerAnimation] = useState(new Animated.Value(0));
-  const [cardAnimations] = useState(new Animated.Value(0));
-  const [pjps, setPjps] = useState(DEMO_PJPS);
+  const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
+  const [attendanceFormType, setAttendanceFormType] = useState<'in' | 'out' | null>(null);
+
+  const [todayPJPs, setTodayPJPs] = useState<PJP[]>([]);
+  const [isLoadingPJPs, setIsLoadingPJPs] = useState(true);
 
   useEffect(() => {
-    StatusBar.setBarStyle('light-content');
+    RNStatusBar.setBarStyle('light-content');
     if (Platform.OS === 'android') {
-      StatusBar.setBackgroundColor('transparent', true);
-      StatusBar.setTranslucent(true);
+      RNStatusBar.setBackgroundColor(theme.colors.background, false);
     }
+  }, [theme]);
 
-    // Start animations
-    Animated.stagger(300, [
-      Animated.timing(headerAnimation, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(cardAnimations, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
+  // Fetch PJPs from API on component mount
+  useEffect(() => {
+    if (!user?.id) return;
 
-    // Connection status simulation
-    const interval = setInterval(() => {
-      setConnectionStatus(Math.random() > 0.1);
-      setLastSync(new Date());
-    }, 30000);
+    const fetchPJPs = async () => {
+      setIsLoadingPJPs(true);
+      try {
+        const today = new Date();
+        const formattedDate = format(today, 'yyyy-MM-dd');
+        const url = `${BASE_URL}/api/pjp/user/${user.id}?startDate=${formattedDate}&endDate=${formattedDate}`;
+        const response = await fetch(url);
+        const result = await response.json();
 
-    return () => clearInterval(interval);
+        if (response.ok && result.success) {
+          setTodayPJPs(result.data);
+        } else {
+          throw new Error(result.error || "Failed to fetch today's PJPs.");
+        }
+      } catch (e) {
+        console.error(e);
+        Toast.show({ type: 'error', text1: 'Error fetching PJPs', text2: "Could not load today's missions." });
+      } finally {
+        setIsLoadingPJPs(false);
+      }
+    };
+    fetchPJPs();
+  }, [user?.id]);
+
+  const handleAttendanceAction = useCallback((type: 'in' | 'out') => {
+    setAttendanceFormType(type);
+    setIsAttendanceModalVisible(true);
   }, []);
 
-  const handlePunchIn = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate([0, 100, 50, 100]);
-    } else {
-      Vibration.vibrate([0, 100, 50, 100]);
-    }
-    setAttendanceStatus("in");
-  }, [setAttendanceStatus]);
+  const handleAttendanceSubmitted = useCallback(() => {
+    setAttendanceStatus(attendanceFormType === 'in' ? 'in' : 'out');
+    setIsAttendanceModalVisible(false);
+    setAttendanceFormType(null);
+  }, [attendanceFormType, setAttendanceStatus]);
 
-  const handlePunchOut = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate([0, 100, 50, 100]);
-    } else {
-      Vibration.vibrate([0, 100, 50, 100]);
-    }
-    setAttendanceStatus("out");
-  }, [setAttendanceStatus]);
+  const handleAttendanceCancelled = useCallback(() => {
+    setIsAttendanceModalVisible(false);
+    setAttendanceFormType(null);
+    Alert.alert("Action Cancelled", "Attendance submission was cancelled.");
+  }, []);
 
   const handleCreatePJP = () => {
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate();
-    } else {
-      Vibration.vibrate(30);
-    }
-    navigation.navigate('AddPJPForm');
+    parentNavigation.navigate('AddPJPForm');
   };
 
-  const handleDailyTasksPress = () => {
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate();
-    } else {
-      Vibration.vibrate(30);
-    }
-    navigation.navigate('DailyTasksForm');
-  };
-
-  const handlePJPCardPress = (pjp) => {
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate();
-    } else {
-      Vibration.vibrate(50);
-    }
+  const handlePJPDetails = (pjp: PJP) => {
+    console.log("Viewing PJP details for:", pjp.dealerName);
     navigation.navigate('Journey', { selectedPJP: pjp });
   };
 
-  const pendingTasks = dailyTasks?.filter(task => 
-    task.status !== 'Completed' && task.status !== 'completed'
-  ) || [];
+  const handleShowMorePJPs = () => {
+    const today = new Date();
+    parentNavigation.navigate('PJPListPage', { date: today.toISOString() });
+  };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -429,726 +116,263 @@ const HomePage = () => {
     return 'Good Evening';
   };
 
+  const renderAttendanceForm = () => {
+    if (!user?.id) {
+      return (
+        <View style={styles.modalContent}>
+          <Text>User ID not found. Cannot proceed with attendance.</Text>
+          <Button onPress={handleAttendanceCancelled} style={styles.modalButton}>Close</Button>
+        </View>
+      );
+    }
+
+    if (attendanceFormType === 'in') {
+      return (
+        <AttendanceInForm
+          userId={user.id}
+          onSubmitted={handleAttendanceSubmitted}
+          onCancel={handleAttendanceCancelled}
+        />
+      );
+    }
+    if (attendanceFormType === 'out') {
+      return (
+        <AttendanceOutForm
+          userId={user.id}
+          onSubmitted={handleAttendanceSubmitted}
+          onCancel={handleAttendanceCancelled}
+        />
+      );
+    }
+    return null;
+  };
+
+  const displayedPJPs = todayPJPs.slice(0, 6);
+  const hasMorePJPs = todayPJPs.length > 6;
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      {/* Enhanced Header */}
-      <Animated.View 
-        style={[
-          styles.headerContainer, 
-          { 
-            paddingTop: top + 10,
-            opacity: headerAnimation,
-            transform: [{
-              translateY: headerAnimation.interpolate({
-                inputRange: [0, 1],
-                outputRange: [-50, 0],
-              }),
-            }],
-          }
-        ]}
-      >
-        <LinearGradient
-          colors={['#0f172a', '#1e293b', 'transparent']}
-          style={styles.headerGradient}
-        >
-          <BlurView intensity={20} tint="dark" style={styles.headerBlur}>
-            <View style={styles.headerContent}>
-              <View style={styles.headerLeft}>
-                <TouchableOpacity style={styles.logoContainer}>
-                  <LinearGradient
-                    colors={['#06b6d4', '#0891b2']}
-                    style={styles.logoGradient}
-                  >
-                    <MaterialCommunityIcons name="radar" size={28} color="white" />
-                  </LinearGradient>
-                </TouchableOpacity>
-                <View style={styles.headerText}>
-                  <Text style={styles.greetingText}>{getGreeting()}</Text>
-                  <Text style={styles.userName}>
-                    {user?.firstName || 'Agent'} {user?.lastName || ''}
-                  </Text>
-                  <Text style={styles.companyName}>
-                    {user?.company || "Field Operations HQ"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.headerRight}>
-                <DailyTasksBellComponent 
-                  pendingCount={pendingTasks.length} 
-                  onBellPress={handleDailyTasksPress} 
-                />
-                <TouchableOpacity style={styles.avatarContainer}>
-                  <LinearGradient
-                    colors={['#06b6d4', '#0891b2']}
-                    style={styles.avatarGradient}
-                  >
-                    <Text style={styles.avatarText}>
-                      {user?.firstName?.[0] || 'A'}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </BlurView>
-        </LinearGradient>
-      </Animated.View>
-
-      <ScrollView 
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader title="Mission Control" />
+      <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: 16 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Connection Status */}
-        <Animated.View 
-          style={[
-            styles.connectionContainer,
-            {
-              opacity: cardAnimations,
-              transform: [{
-                translateY: cardAnimations.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              }],
-            }
-          ]}
-        >
-          <BlurView intensity={15} tint="dark" style={styles.connectionBlur}>
-            <View style={styles.connectionContent}>
-              <View style={[
-                styles.connectionDot, 
-                connectionStatus ? styles.dotOnline : styles.dotOffline
-              ]} />
-              <Text style={styles.connectionText}>
-                {connectionStatus ? 'MISSION CONTROL ONLINE' : 'OFFLINE MODE'}
-              </Text>
-              <Text style={styles.lastSyncText}>
-                • {lastSync.toLocaleTimeString()}
-              </Text>
-            </View>
-          </BlurView>
-        </Animated.View>
+        {/* User Info Header */}
+        <View style={[styles.header, { paddingTop: 0 }]}>
+          <Text style={[styles.greetingText, { color: theme.colors.primary }]}>{getGreeting()}</Text>
+          <Text style={[styles.userName, { color: theme.colors.onSurface }]}>
+            {user?.firstName || 'Agent'} {user?.lastName || 'Field Ops'}
+          </Text>
+          <Text style={[styles.userEmail, { color: theme.colors.onSurfaceVariant }]}>{user?.email || 'user@example.com'}</Text>
+          <Text style={[styles.userRole, { color: theme.colors.onSurfaceVariant }]}>{user?.role || 'Field Operations Specialist'}</Text>
+        </View>
 
-        {/* Enhanced Attendance Panel */}
-        <Animated.View 
-          style={[
-            styles.attendanceContainer,
-            {
-              opacity: cardAnimations,
-              transform: [{
-                scale: cardAnimations.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.9, 1],
-                }),
-              }],
-            }
-          ]}
-        >
-          <BlurView intensity={25} tint="dark" style={styles.attendanceBlur}>
-            <LinearGradient
-              colors={['rgba(15, 23, 42, 0.9)', 'rgba(30, 41, 59, 0.8)']}
-              style={styles.attendanceGradient}
-            >
-              <View style={styles.attendanceContent}>
-                <View style={styles.dutyStatusSection}>
-                  <Text style={styles.dutyStatusLabel}>DUTY STATUS</Text>
-                  <View style={styles.dutyStatusRow}>
-                    <View style={[
-                      styles.statusIndicator,
-                      attendanceStatus === 'in' ? styles.statusActive : styles.statusStandby
-                    ]} />
-                    <Text style={styles.dutyStatusText}>
-                      {attendanceStatus === 'in' ? 'ON ACTIVE DUTY' : 'STANDBY MODE'}
-                    </Text>
-                  </View>
-                  <Text style={styles.dutyTime}>
-                    {new Date().toLocaleTimeString()}
-                  </Text>
-                </View>
+        {/* Attendance Buttons */}
+        <View style={styles.attendanceButtonsContainer}>
+          <Button
+            mode="contained"
+            onPress={() => handleAttendanceAction('in')}
+            disabled={attendanceStatus === 'in'}
+            style={[styles.attendanceButton, { backgroundColor: theme.colors.primary }]}
+            icon="login"
+          >
+            Check In
+          </Button>
+          <Button
+            mode="contained"
+            onPress={() => handleAttendanceAction('out')}
+            disabled={attendanceStatus !== 'in'}
+            style={[styles.attendanceButton, { backgroundColor: theme.colors.secondary }]}
+            icon="logout"
+          >
+            Check Out
+          </Button>
+        </View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.attendanceButton,
-                    attendanceStatus === 'in' ? styles.punchOutButton : styles.punchInButton
-                  ]}
-                  onPress={attendanceStatus === 'in' ? handlePunchOut : handlePunchIn}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={attendanceStatus === 'in' 
-                      ? ['#ef4444', '#dc2626'] 
-                      : ['#10b981', '#059669']
-                    }
-                    style={styles.buttonGradient}
-                  >
-                    <MaterialCommunityIcons 
-                      name={attendanceStatus === 'in' ? "logout" : "login"} 
-                      size={20} 
-                      color="white" 
-                    />
-                    <Text style={styles.buttonText}>
-                      {attendanceStatus === 'in' ? 'PUNCH OUT' : 'PUNCH IN'}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
-          </BlurView>
-        </Animated.View>
-
-        {/* PJP Section Header */}
-        <Animated.View 
-          style={[
-            styles.pjpSectionHeader,
-            {
-              opacity: cardAnimations,
-              transform: [{
-                translateY: cardAnimations.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                }),
-              }],
-            }
-          ]}
-        >
+        {/* PJP Overview Section */}
+        <View style={styles.pjpSection}>
           <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <LinearGradient
-                colors={['#06b6d4', '#0891b2']}
-                style={styles.sectionIconBg}
-              >
-                <MaterialCommunityIcons name="clock-time-four" size={24} color="white" />
-              </LinearGradient>
-              <View>
-                <Text style={styles.sectionTitle}>Mission Clock</Text>
-                <Text style={styles.pjpCount}>
-                  {pjps?.length || 0} {(pjps?.length || 0) === 1 ? 'mission' : 'missions'} rotating
-                </Text>
-              </View>
-            </View>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
+              Today's Missions
+            </Text>
+            <IconButton
+              icon="plus"
+              onPress={handleCreatePJP}
+              size={24}
+              iconColor={theme.colors.primary}
+              style={[styles.pjpPlusButton, { backgroundColor: theme.colors.surfaceVariant }]}
+            />
           </View>
-        </Animated.View>
 
-        {/* SINGLE ROTATING FLIP CLOCK */}
-        <Animated.View 
-          style={[
-            styles.flipClockSection,
-            {
-              opacity: cardAnimations,
-              transform: [{
-                translateY: cardAnimations.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [80, 0],
-                }),
-              }],
-            }
-          ]}
-        >
-          <SingleFlipClock pjps={pjps} onCardPress={handlePJPCardPress} />
-        </Animated.View>
+          {isLoadingPJPs ? (
+            <View style={styles.pjpEmptyCardContent}>
+              <ActivityIndicator size="large" />
+              <Text style={[styles.pjpEmptyText, { color: theme.colors.onSurfaceVariant }]}>Loading missions...</Text>
+            </View>
+          ) : todayPJPs.length > 0 ? (
+            <View>
+              {displayedPJPs.map((pjp) => (
+                <PJPFloatingCard
+                  key={pjp.id}
+                  pjp={pjp}
+                  onCardPress={handlePJPDetails}
+                />
+              ))}
+              {hasMorePJPs && (
+                <Button mode="text" onPress={handleShowMorePJPs} style={{ marginTop: 8 }}>
+                  Show More ({todayPJPs.length - displayedPJPs.length})
+                </Button>
+              )}
+            </View>
+          ) : (
+            <Card style={[styles.pjpEmptyCard, { backgroundColor: theme.colors.surfaceVariant }]}>
+              <Card.Content style={styles.pjpEmptyCardContent}>
+                <MuiIcon name="calendar-search" size={48} color={theme.colors.onSurfaceVariant} />
+                <Text style={[styles.pjpEmptyText, { color: theme.colors.onSurfaceVariant }]}>No missions planned for today.</Text>
+                <Button mode="outlined" onPress={handleCreatePJP} style={styles.pjpEmptyButton}>
+                  Plan a new mission
+                </Button>
+              </Card.Content>
+            </Card>
+          )}
+        </View>
       </ScrollView>
 
-      {/* Enhanced Floating Action Button */}
+      {/* Floating Action Button */}
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
         onPress={handleCreatePJP}
-        activeOpacity={0.8}
       >
-        <LinearGradient
-          colors={['#06b6d4', '#0891b2']}
-          style={styles.fabGradient}
-        >
-          <MaterialCommunityIcons name="plus" size={28} color="white" />
-        </LinearGradient>
+        <MaterialCommunityIcons name="plus" size={28} color={theme.colors.onPrimary} />
       </TouchableOpacity>
+
+      {/* Attendance Modals */}
+      <Portal>
+        <Modal
+          visible={isAttendanceModalVisible}
+          onDismiss={handleAttendanceCancelled}
+          contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}
+        >
+          <SafeAreaView style={{ flex: 1 }}>
+            {renderAttendanceForm()}
+          </SafeAreaView>
+        </Modal>
+      </Portal>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
-  },
-  headerContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-  },
-  headerGradient: {
-    paddingBottom: 20,
-  },
-  headerBlur: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  logoContainer: {
-    marginRight: 15,
-  },
-  logoGradient: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 10,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  headerText: {
-    flex: 1,
-  },
-  greetingText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#06b6d4',
-    letterSpacing: 0.5,
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
-    marginTop: 2,
-  },
-  companyName: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 1,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-  },
-  bellContainer: {
-    position: 'relative',
-  },
-  bellGradient: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  bellBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#ef4444',
-    borderRadius: 12,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  bellBadgeText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  avatarContainer: {},
-  avatarGradient: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 140,
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     paddingBottom: 100,
   },
-  connectionContainer: {
+  header: {
+    alignItems: 'center',
     marginBottom: 20,
-    alignItems: 'center',
-  },
-  connectionBlur: {
-    borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
   },
-  connectionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  connectionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  dotOnline: {
-    backgroundColor: '#10b981',
-  },
-  dotOffline: {
-    backgroundColor: '#ef4444',
-  },
-  connectionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#06b6d4',
-    letterSpacing: 1,
-  },
-  lastSyncText: {
-    fontSize: 10,
-    color: '#94a3b8',
-  },
-  attendanceContainer: {
-    marginBottom: 24,
-  },
-  attendanceBlur: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.2)',
-  },
-  attendanceGradient: {
-    padding: 20,
-  },
-  attendanceContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dutyStatusSection: {
-    flex: 1,
-  },
-  dutyStatusLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#06b6d4',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
-  dutyStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 4,
-  },
-  statusIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  statusActive: {
-    backgroundColor: '#10b981',
-  },
-  statusStandby: {
-    backgroundColor: '#f59e0b',
-  },
-  dutyStatusText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'white',
-  },
-  dutyTime: {
-    fontSize: 12,
-    color: '#94a3b8',
-    fontWeight: '500',
-  },
-  attendanceButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  punchInButton: {},
-  punchOutButton: {},
-  buttonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: 'white',
+  greetingText: {
+    fontSize: 18,
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
-  pjpSectionHeader: {
-    marginBottom: 16,
+  userName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  userEmail: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  userRole: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  attendanceButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginVertical: 20,
+    paddingHorizontal: 16,
+  },
+  attendanceButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  pjpSection: {
+    marginTop: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  sectionIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    marginBottom: 16,
+    paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: 'white',
-    letterSpacing: 0.5,
-  },
-  pjpCount: {
-    fontSize: 14,
-    color: '#06b6d4',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  flipClockSection: {
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-
-  // SINGLE FLIP CLOCK STYLES
-  flipClockContainer: {
-    alignItems: 'center',
-    position: 'relative',
-  },
-  chromeFrame: {
-    borderRadius: 20,
-    padding: 8,
-    elevation: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
-    position: 'relative',
-  },
-  chromeStand: {
-    position: 'absolute',
-    bottom: -15,
-    left: '40%',
-    right: '40%',
-    height: 20,
-    backgroundColor: '#9ca3af',
-    borderRadius: 10,
-    elevation: 10,
-  },
-  flipCardContainer: {
-    width: width - 80,
-    height: 240,
-  },
-  flipCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    elevation: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    justifyContent: 'space-between',
-  },
-  numberDisplay: {
-    alignItems: 'center',
-    marginBottom: 12,
-    position: 'relative',
-  },
-  missionNumber: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: '#111827',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-condensed',
-    letterSpacing: -2,
-  },
-  flipHinge: {
-    position: 'absolute',
-    bottom: -8,
-    left: '20%',
-    right: '20%',
-    height: 2,
-    backgroundColor: '#9ca3af',
-    borderRadius: 1,
-  },
-  dealerName: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#374151',
-    textAlign: 'center',
-    marginBottom: 16,
+    fontWeight: 'bold',
   },
-  progressDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  progressNumber: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#111827',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-condensed',
-    letterSpacing: -1,
-  },
-  percentSign: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#6b7280',
-    marginLeft: 4,
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  targetContainer: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  targetLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6b7280',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  targetAmount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  addressText: {
-    fontSize: 11,
-    color: '#6b7280',
-    marginLeft: 4,
-    flex: 1,
-    textAlign: 'center',
-  },
-  chromeArmLeft: {
-    position: 'absolute',
-    left: -12,
-    top: '30%',
-    width: 8,
-    height: '40%',
-    backgroundColor: '#cbd5e1',
-    borderRadius: 4,
-    elevation: 12,
-  },
-  chromeArmRight: {
-    position: 'absolute',
-    right: -12,
-    top: '30%',
-    width: 8,
-    height: '40%',
-    backgroundColor: '#cbd5e1',
-    borderRadius: 4,
-    elevation: 12,
-  },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 20,
-    gap: 16,
-  },
-  controlButton: {
-    padding: 8,
+  pjpPlusButton: {
     borderRadius: 12,
-    backgroundColor: 'rgba(6, 182, 212, 0.1)',
   },
-  pagination: {
-    flexDirection: 'row',
-    gap: 8,
+  pjpList: {
+    paddingRight: 16,
   },
-  paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  pjpEmptyCard: {
+    marginHorizontal: 16,
+    borderRadius: 16,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  pjpEmptyCardContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  pjpEmptyText: {
+    marginTop: 16,
+    marginBottom: 16,
+    fontSize: 14,
+  },
+  pjpEmptyButton: {
+    marginTop: 12,
   },
   fab: {
     position: 'absolute',
-    bottom: 30,
-    right: 20,
-    borderRadius: 28,
-    elevation: 12,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-  },
-  fabGradient: {
+    bottom: 80,
+    right: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 8,
+  },
+  modalContainer: {
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 8,
+    flex: 1,
+  },
+  modalContent: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  modalButton: {
+    marginTop: 16,
   },
 });
-
-export default HomePage;

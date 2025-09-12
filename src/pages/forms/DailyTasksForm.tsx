@@ -1,43 +1,42 @@
+// src/pages/forms/DailyTasksForm.tsx
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
+import { ScrollView, View, TouchableOpacity, Platform, Alert, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, Button, TextInput, HelperText, useTheme } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useForm, Controller, Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import RNPickerSelect from 'react-native-picker-select';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
 
-interface DailyTaskFormData {
-  userId: number;
-  assignedByUserId: number;
-  taskDate: string;
-  visitType: string;
-  relatedDealerId?: string;
-  siteName?: string;
-  description?: string;
-  pjpId?: string;
-}
+import { BASE_URL, useAppStore } from '../../components/ReusableConstants';
+import AppHeader from '../../components/AppHeader';
+import Toast from 'react-native-toast-message';
 
-export default function DailyTasksForm({ navigation }: any) {
-  const [formData, setFormData] = useState<DailyTaskFormData>({
-    userId: 1,
-    assignedByUserId: 1,
-    taskDate: new Date().toISOString().split('T')[0],
-    visitType: '',
-    relatedDealerId: '',
-    siteName: '',
-    description: '',
-    pjpId: '',
-  });
+// --- Zod Schema ---
+const DailyTaskSchema = z.object({
+  userId: z.number(),
+  assignedByUserId: z.number(),
+  taskDate: z.date(),
+  visitType: z.string().min(1, "Visit type is required"),
+  relatedDealerId: z.string().optional(),
+  siteName: z.string().optional(),
+  description: z.string().optional(),
+  pjpId: z.string().optional(),
+});
+
+type DailyTaskFormValues = z.infer<typeof DailyTaskSchema>;
+
+// --- Component ---
+export default function DailyTasksForm() {
+  const navigation = useNavigation();
+  const theme = useTheme();
+  const { user } = useAppStore();
 
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [dealers] = useState([]); // TODO: Fetch from API
   const [pjps] = useState([]); // TODO: Fetch from API
 
@@ -52,265 +51,249 @@ export default function DailyTasksForm({ navigation }: any) {
     'Other',
   ];
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setFormData({
-        ...formData,
-        taskDate: selectedDate.toISOString().split('T')[0],
-      });
-    }
-  };
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting, isValid },
+  } = useForm<DailyTaskFormValues>({
+    resolver: zodResolver(DailyTaskSchema) as unknown as Resolver<DailyTaskFormValues, any>,
+    mode: 'onChange',
+    defaultValues: {
+      userId: user?.id,
+      assignedByUserId: user?.id,
+      taskDate: new Date(),
+      visitType: '',
+      relatedDealerId: '',
+      siteName: '',
+      description: '',
+      pjpId: '',
+    },
+  });
 
-  const handleSubmit = async () => {
-    if (!formData.taskDate || !formData.visitType) {
-      Alert.alert('Error', 'Please fill in all required fields');
+  const taskDate = watch('taskDate');
+
+  const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (event.type === 'dismissed' || !selectedDate) {
+      setShowDatePicker(false);
       return;
     }
+    setValue('taskDate', selectedDate, { shouldValidate: true });
+    setShowDatePicker(false);
+  };
 
-    setIsLoading(true);
+  const submit = async (values: DailyTaskFormValues) => {
     try {
+      const payload = {
+        ...values,
+        taskDate: format(values.taskDate, 'yyyy-MM-dd'),
+      };
+
       // TODO: API call to create daily task
-      console.log('Creating daily task:', formData);
-      Alert.alert('Success', 'Daily task created successfully');
+      const response = await fetch(`${BASE_URL}/api/daily-tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to create daily task');
+
+      Toast.show({ type: 'success', text1: 'Task Created', text2: 'Daily task created successfully' });
       navigation.goBack();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create daily task');
-    } finally {
-      setIsLoading(false);
+    } catch (error: any) {
+      Alert.alert('Submission Failed', error.message);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#06b6d4" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Create Daily Task</Text>
-      </View>
+    <SafeAreaView style={[{ backgroundColor: theme.colors.background }, styles.container]} edges={['right', 'bottom', 'left']}>
+      {/* Assuming AppHeader is a component that provides the back button and title */}
+      <AppHeader title="Create Daily Task" />
 
-      <View style={styles.form}>
+      {showDatePicker && (
+        <DateTimePicker
+          value={taskDate || new Date()}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+        />
+      )}
+
+      <ScrollView contentContainerStyle={styles.contentContainer}>
+        <Text variant="headlineSmall" style={styles.headerTitle}>Daily Task Details</Text>
+        <Text variant="bodyMedium" style={styles.headerSubtitle}>Log your day-to-day work activities.</Text>
+
         {/* Task Date */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Task Date *</Text>
-          <TouchableOpacity
-            style={styles.dateInput}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={styles.dateText}>
-              {new Date(formData.taskDate).toLocaleDateString()}
-            </Text>
-            <Ionicons name="calendar" size={20} color="#06b6d4" />
-          </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={new Date(formData.taskDate)}
-              mode="date"
-              display="default"
-              onChange={handleDateChange}
+        <View style={styles.inputContainer}>
+          <TouchableOpacity onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
+            <TextInput
+              label="Task Date *"
+              value={format(taskDate, "PPP")}
+              editable={false}
+              right={<TextInput.Icon icon="calendar-month" />}
+              error={!!errors.taskDate}
             />
-          )}
+          </TouchableOpacity>
+          {errors.taskDate && <HelperText type="error">{errors.taskDate.message as string}</HelperText>}
         </View>
 
         {/* Visit Type */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Visit Type *</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={formData.visitType}
-              onValueChange={(value) =>
-                setFormData({ ...formData, visitType: value })
-              }
-              style={styles.picker}
-            >
-              <Picker.Item label="Select visit type" value="" />
-              {visitTypes.map((type) => (
-                <Picker.Item key={type} label={type} value={type} />
-              ))}
-            </Picker>
-          </View>
-        </View>
+        <Controller
+          control={control}
+          name="visitType"
+          render={({ field: { onChange, value } }) => (
+            <View style={styles.inputContainer}>
+              <View style={[styles.pickerWrapper, { borderColor: errors.visitType ? theme.colors.error : theme.colors.outline }]}>
+                <RNPickerSelect
+                  onValueChange={onChange}
+                  value={value}
+                  items={visitTypes.map(type => ({ label: type, value: type }))}
+                  placeholder={{ label: "Select Visit Type *", value: "" }}
+                  style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }}
+                  useNativeAndroidPickerStyle={false}
+                  Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+                />
+              </View>
+              {errors.visitType && <HelperText type="error">{errors.visitType.message}</HelperText>}
+            </View>
+          )}
+        />
 
         {/* Related Dealer */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Related Dealer</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={formData.relatedDealerId}
-              onValueChange={(value) =>
-                setFormData({ ...formData, relatedDealerId: value })
-              }
-              style={styles.picker}
-            >
-              <Picker.Item label="Select dealer (optional)" value="" />
-              {dealers.map((dealer: any) => (
-                <Picker.Item key={dealer.id} label={dealer.name} value={dealer.id} />
-              ))}
-            </Picker>
-          </View>
-        </View>
+        <Controller
+          control={control}
+          name="relatedDealerId"
+          render={({ field: { onChange, value } }) => (
+            <View style={styles.inputContainer}>
+              <View style={[styles.pickerWrapper, { borderColor: errors.relatedDealerId ? theme.colors.error : theme.colors.outline }]}>
+                <RNPickerSelect
+                  onValueChange={onChange}
+                  value={value}
+                  items={(dealers || []).map((dealer: any) => ({ label: dealer.name, value: String(dealer.id) }))}
+                  placeholder={{ label: "Select Related Dealer (optional)", value: "" }}
+                  style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }}
+                  useNativeAndroidPickerStyle={false}
+                  Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+                />
+              </View>
+              {errors.relatedDealerId && <HelperText type="error">{errors.relatedDealerId.message}</HelperText>}
+            </View>
+          )}
+        />
 
         {/* Site Name */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Site Name</Text>
-          <TextInput
-            style={styles.textInput}
-            placeholder="Enter site name"
-            value={formData.siteName}
-            onChangeText={(text) => setFormData({ ...formData, siteName: text })}
-            placeholderTextColor="#94a3b8"
-          />
-        </View>
+        <Controller
+          control={control}
+          name="siteName"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <View style={styles.inputContainer}>
+              <TextInput label="Site Name (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} error={!!errors.siteName} />
+            </View>
+          )}
+        />
 
         {/* PJP Reference */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>PJP Reference</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={formData.pjpId}
-              onValueChange={(value) =>
-                setFormData({ ...formData, pjpId: value })
-              }
-              style={styles.picker}
-            >
-              <Picker.Item label="Select PJP (optional)" value="" />
-              {pjps.map((pjp: any) => (
-                <Picker.Item key={pjp.id} label={pjp.name} value={pjp.id} />
-              ))}
-            </Picker>
-          </View>
-        </View>
+        <Controller
+          control={control}
+          name="pjpId"
+          render={({ field: { onChange, value } }) => (
+            <View style={styles.inputContainer}>
+              <View style={[styles.pickerWrapper, { borderColor: errors.pjpId ? theme.colors.error : theme.colors.outline }]}>
+                <RNPickerSelect
+                  onValueChange={onChange}
+                  value={value}
+                  items={(pjps || []).map((pjp: any) => ({ label: `PJP ${pjp.id}`, value: String(pjp.id) }))}
+                  placeholder={{ label: "Select PJP Reference (optional)", value: "" }}
+                  style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }}
+                  useNativeAndroidPickerStyle={false}
+                  Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+                />
+              </View>
+              {errors.pjpId && <HelperText type="error">{errors.pjpId.message}</HelperText>}
+            </View>
+          )}
+        />
 
         {/* Description */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.textInput, styles.textArea]}
-            placeholder="Enter task description"
-            value={formData.description}
-            onChangeText={(text) => setFormData({ ...formData, description: text })}
-            multiline
-            numberOfLines={4}
-            placeholderTextColor="#94a3b8"
-          />
-        </View>
+        <Controller
+          control={control}
+          name="description"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <View style={styles.inputContainer}>
+              <TextInput
+                label="Description (Optional)"
+                value={value || ''}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+          )}
+        />
 
         {/* Submit Button */}
-        <TouchableOpacity
-          style={[styles.submitButton, isLoading && styles.disabledButton]}
-          onPress={handleSubmit}
-          disabled={isLoading}
+        <Button
+          mode="contained"
+          onPress={handleSubmit(submit)}
+          loading={isSubmitting}
+          disabled={!isValid || isSubmitting}
+          style={styles.button}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
-              <Text style={styles.submitButtonText}>Create Task</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          Create Task
+        </Button>
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
   },
   contentContainer: {
-    paddingBottom: 20,
+    padding: 16,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(6, 182, 212, 0.2)',
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  title: {
-    fontSize: 24,
+  headerTitle: {
     fontWeight: 'bold',
-    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 4,
   },
-  form: {
-    padding: 20,
+  headerSubtitle: {
+    textAlign: 'center',
+    marginBottom: 24,
   },
-  fieldContainer: {
-    marginBottom: 20,
+  inputContainer: {
+    marginBottom: 16,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#e2e8f0',
-    marginBottom: 8,
-  },
-  textInput: {
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+  pickerWrapper: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#374151',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    borderRadius: 12,
-    padding: 15,
-    color: '#ffffff',
+    borderColor: '#4b5563',
+  },
+  pickerInput: {
     fontSize: 16,
+    paddingVertical: 12,
+    paddingRight: 30,
+    color: 'white',
   },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
+  pickerPlaceholder: {
+    color: '#9ca3af',
   },
-  dateInput: {
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    borderRadius: 12,
-    padding: 15,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  pickerIcon: {
+    top: 15,
+    right: 15,
   },
-  dateText: {
-    color: '#ffffff',
-    fontSize: 16,
-  },
-  pickerContainer: {
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  picker: {
-    color: '#ffffff',
-    backgroundColor: 'transparent',
-  },
-  submitButton: {
-    backgroundColor: '#06b6d4',
-    padding: 15,
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 8,
+  button: {
+    marginTop: 16,
+    padding: 4,
+    borderRadius: 8,
   },
 });

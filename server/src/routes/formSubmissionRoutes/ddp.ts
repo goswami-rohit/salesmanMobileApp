@@ -3,8 +3,20 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { ddp, insertDdpSchema } from '../../db/schema';
+import { ddp } from '../../db/schema';
 import { z } from 'zod';
+
+// Manual Zod schema EXACTLY matching the table schema
+const ddpSchema = z.object({
+  userId: z.number().int().positive(),
+  dealerId: z.string().max(255).min(1),
+  creationDate: z.string().or(z.date()),
+  status: z.string().min(1),
+  obstacle: z.string().optional().nullable().or(z.literal("")),
+}).transform((data) => ({
+  ...data,
+  obstacle: data.obstacle === "" ? null : data.obstacle,
+}));
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -18,25 +30,41 @@ function createAutoCRUD(app: Express, config: {
   // CREATE NEW RECORD
   app.post(`/api/${endpoint}`, async (req: Request, res: Response) => {
     try {
-      const validatedData = schema.parse({
-        ...req.body,
-        ...autoFields
-      });
+      // Execute autoFields functions
+      const executedAutoFields: any = {};
+      for (const [key, fn] of Object.entries(autoFields)) {
+        executedAutoFields[key] = fn();
+      }
 
-      const [newRecord] = await db.insert(table).values(validatedData).returning();
+      // Validate the payload
+      const parsed = schema.parse(req.body);
+
+      // Prepare data for insertion - NO ID needed (serial auto-increment)
+      const insertData = {
+        ...parsed,
+        creationDate: new Date(parsed.creationDate),
+        ...executedAutoFields
+      };
+
+      const [newRecord] = await db.insert(table).values(insertData).returning();
 
       res.status(201).json({
         success: true,
         message: `${tableName} created successfully`,
         data: newRecord
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Create ${tableName} error:`, error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           success: false,
           error: 'Validation failed',
-          details: error.errors
+          details: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+            code: err.code,
+            received: err.received
+          }))
         });
       }
       res.status(500).json({
@@ -52,11 +80,8 @@ export default function setupDdpPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'ddp',
     table: ddp,
-    schema: insertDdpSchema,
-    tableName: 'Dealer Development Process',
-    autoFields: {
-      creationDate: () => new Date().toISOString().split('T')[0]
-    }
+    schema: ddpSchema,
+    tableName: 'Dealer Development Process'
   });
   
   console.log('✅ DDP POST endpoints setup complete');

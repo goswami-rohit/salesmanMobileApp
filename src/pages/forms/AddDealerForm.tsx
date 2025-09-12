@@ -1,26 +1,34 @@
 // src/pages/forms/AddDealer.tsx
-import React, { useState, useEffect } from 'react';
-import { ScrollView, View, TouchableOpacity, PermissionsAndroid, Platform, Alert } from 'react-native';
+import React, { useState } from 'react';
+import {
+  ScrollView,
+  View,
+  TouchableOpacity,
+  Platform,
+  Alert,
+  StyleSheet,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { SubmitHandler, Resolver } from 'react-hook-form';
-import { Text, Button, TextInput, Switch, Modal, Portal, Checkbox, HelperText } from 'react-native-paper';
+import { Text, Button, TextInput, Switch, Modal, Portal, Checkbox, HelperText, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import RNPickerSelect from 'react-native-picker-select';
+import * as Location from 'expo-location'; // <-- Changed to expo-location
 import Geolocation from 'react-native-geolocation-service';
 
 import { useAppStore, DEALER_TYPES, BRANDS, FEEDBACKS, BASE_URL } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
 import Toast from 'react-native-toast-message';
 
-// --- Zod Schema for Validation (Corrected) ---
+// --- Zod Schema ---
 const DealerSchema = z.object({
   userId: z.number(),
   type: z.string().min(1, "Dealer type is required"),
-  isSubDealer: z.boolean(),               // required boolean (use defaultValues to set false)
+  isSubDealer: z.boolean(),
   parentDealerId: z.string().optional(),
   name: z.string().min(3, "Name must be at least 3 characters"),
   region: z.string().min(1, "Region is required"),
@@ -41,10 +49,10 @@ const DealerSchema = z.object({
 
 type DealerFormValues = z.infer<typeof DealerSchema>;
 
-// --- Component ---
 export default function AddDealerForm() {
   const navigation = useNavigation();
   const { user, dealers } = useAppStore();
+  const theme = useTheme();
 
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [brandsModalVisible, setBrandsModalVisible] = useState(false);
@@ -75,27 +83,27 @@ export default function AddDealerForm() {
   const isSubDealer = watch('isSubDealer');
   const brandSelling = watch('brandSelling');
 
+  // FIX: Switched to expo-location for consistent behavior and crash prevention
   const useMyLocation = async () => {
     setIsLoadingLocation(true);
     try {
       if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
           Alert.alert('Permission Denied', 'Location access is required.');
+          setIsLoadingLocation(false);
           return;
         }
       }
-      Geolocation.getCurrentPosition(
-        (position) => {
-          setValue('latitude', position.coords.latitude, { shouldValidate: true });
-          setValue('longitude', position.coords.longitude, { shouldValidate: true });
-          Toast.show({ type: 'success', text1: 'Location Captured' });
-        },
-        (error) => Alert.alert('Error', error.message),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-      );
-    } catch (err) {
+      const position = await Location.getCurrentPositionAsync({});
+
+      // FIX: setValue with the numeric value directly
+      setValue('latitude', position.coords.latitude, { shouldValidate: true });
+      setValue('longitude', position.coords.longitude, { shouldValidate: true });
+      Toast.show({ type: 'success', text1: 'Location Captured' });
+    } catch (err: any) {
       console.warn(err);
+      Alert.alert('Error', err.message || 'Could not fetch location');
     } finally {
       setIsLoadingLocation(false);
     }
@@ -122,59 +130,63 @@ export default function AddDealerForm() {
         text1: 'Dealer Created',
         text2: 'The new dealer has been saved.'
       });
+      // @ts-ignore
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert('Submission Failed', error.message);
+      Alert.alert('Submission Failed', error?.message || String(error));
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-900" edges={['right', 'bottom', 'left']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['right', 'bottom', 'left']}>
       <AppHeader title="Add New Dealer" />
       <Portal>
-        <Modal visible={brandsModalVisible} onDismiss={() => setBrandsModalVisible(false)} contentContainerStyle={{ backgroundColor: '#1e293b', padding: 20, margin: 20, borderRadius: 8 }}>
-          <Text variant="titleLarge" className="text-slate-200 mb-2">Select Brands</Text>
-          <ScrollView>
+        <Modal visible={brandsModalVisible} onDismiss={() => setBrandsModalVisible(false)} contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
+          <Text variant="titleLarge" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Select Brands</Text>
+          <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingBottom: 8 }}>
             {BRANDS.map(brand => (
               <Checkbox.Item
                 key={brand}
                 label={brand}
-                status={brandSelling.includes(brand) ? 'checked' : 'unchecked'}
+                status={brandSelling?.includes(brand) ? 'checked' : 'unchecked'}
                 onPress={() => {
-                  const newBrands = brandSelling.includes(brand) ? brandSelling.filter(b => b !== brand) : [...brandSelling, brand];
+                  const newBrands = brandSelling?.includes(brand) ? brandSelling.filter((b: string) => b !== brand) : [...(brandSelling || []), brand];
                   setValue('brandSelling', newBrands, { shouldValidate: true });
                 }}
-                labelStyle={{ color: '#e5e7eb' }}
+                labelStyle={[styles.checkboxLabel, { color: theme.colors.onSurface }]}
+                position="leading"
+                style={styles.checkboxItem}
+                color={theme.colors.primary}
               />
             ))}
           </ScrollView>
-          <Button onPress={() => setBrandsModalVisible(false)} className="mt-4">Done</Button>
+          <Button mode="contained" onPress={() => setBrandsModalVisible(false)} style={styles.doneButton}>Done</Button>
         </Modal>
       </Portal>
 
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text variant="headlineSmall" className="text-slate-200 font-bold text-center mb-1">Dealer Information</Text>
-        <Text variant="bodyMedium" className="text-slate-400 text-center mb-6">Fill in the details for the new dealer.</Text>
+      <ScrollView contentContainerStyle={styles.formWrapper} keyboardShouldPersistTaps="handled">
+        <Text variant="headlineSmall" style={[styles.heading, { color: theme.colors.onSurface }]}>Dealer Information</Text>
+        <Text variant="bodyMedium" style={[styles.subHeading, { color: theme.colors.onSurfaceVariant }]}>Fill in the details for the new dealer.</Text>
 
         <Controller control={control} name="isSubDealer" render={({ field: { onChange, value } }) => (
-          <View className="flex-row items-center justify-between p-3 bg-slate-800 rounded-lg mb-4">
-            <Text className="text-slate-200">Is this a Sub-Dealer?</Text>
-            <Switch value={value} onValueChange={onChange} />
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.colors.onSurface }]}>Is this a Sub-Dealer?</Text>
+            <Switch value={value} onValueChange={onChange} color={theme.colors.primary} />
           </View>
         )} />
 
         {isSubDealer && (
           <Controller control={control} name="parentDealerId" render={({ field: { onChange, value } }) => (
-            <View className="mb-4">
-              <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
+            <View style={styles.field}>
+              <View style={[styles.pickerWrapper, { backgroundColor: theme.colors.surface, borderColor: errors.parentDealerId ? theme.colors.error : theme.colors.outlineVariant }]}>
                 <RNPickerSelect
                   onValueChange={onChange}
                   value={value}
                   items={dealers.map(d => ({ label: d.name, value: String(d.id) }))}
                   placeholder={{ label: "Select Parent Dealer *", value: null }}
-                  style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }}
+                  style={pickerSelectStyles(theme)}
                   useNativeAndroidPickerStyle={false}
-                  Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />}
+                  Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
                 />
               </View>
               {errors.parentDealerId && <HelperText type="error">{errors.parentDealerId.message}</HelperText>}
@@ -183,84 +195,77 @@ export default function AddDealerForm() {
         )}
 
         <Controller control={control} name="type" render={({ field: { onChange, value } }) => (
-          <View className="mb-4">
-            <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
-              <RNPickerSelect onValueChange={onChange} value={value} items={DEALER_TYPES.map(t => ({ label: t, value: t }))} placeholder={{ label: "Select Dealer Type *", value: null }} style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />} />
+          <View style={styles.field}>
+            <View style={[styles.pickerWrapper, { backgroundColor: theme.colors.surface, borderColor: errors.type ? theme.colors.error : theme.colors.outlineVariant }]}>
+              <RNPickerSelect
+                onValueChange={onChange}
+                value={value}
+                items={DEALER_TYPES.map(t => ({ label: t, value: t }))}
+                placeholder={{ label: "Select Dealer Type *", value: null }}
+                style={pickerSelectStyles(theme)}
+                useNativeAndroidPickerStyle={false}
+                Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+              />
             </View>
             {errors.type && <HelperText type="error">{errors.type.message}</HelperText>}
           </View>
         )} />
 
         <Controller control={control} name="name" render={({ field: { onChange, onBlur, value } }) => (
-          <View className="mb-4">
-            <TextInput label="Dealer Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.name} />
+          <View style={styles.field}>
+            <TextInput label="Dealer Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.name} mode="outlined" />
             {errors.name && <HelperText type="error">{errors.name.message}</HelperText>}
           </View>
         )} />
 
-        <View className="flex-row gap-4">
-          <Controller
-            control={control}
-            name="region"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <View className="flex-1 mb-4">
-                <TextInput
-                  label="Region *"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  error={!!errors.region}
-                />
-                {errors.region && <HelperText type="error">{errors.region.message}</HelperText>}
-              </View>
-            )} />
-          <Controller
-            control={control}
-            name="area"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <View className="flex-1 mb-4">
-                <TextInput
-                  label="Area *"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  error={!!errors.area}
-                />
-                {errors.area && <HelperText type="error">{errors.area.message}</HelperText>}
-              </View>
-            )} />
+        <View style={styles.row}>
+          <Controller control={control} name="region" render={({ field: { onChange, onBlur, value } }) => (
+            <View style={styles.halfField}>
+              <TextInput label="Region *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.region} mode="outlined" />
+              {errors.region && <HelperText type="error">{errors.region.message}</HelperText>}
+            </View>
+          )} />
+          <Controller control={control} name="area" render={({ field: { onChange, onBlur, value } }) => (
+            <View style={styles.halfField}>
+              <TextInput label="Area *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.area} mode="outlined" />
+              {errors.area && <HelperText type="error">{errors.area.message}</HelperText>}
+            </View>
+          )} />
         </View>
 
         <Controller control={control} name="address" render={({ field: { onChange, onBlur, value } }) => (
-          <View className="mb-4">
-            <TextInput label="Address *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.address} multiline numberOfLines={3} />
+          <View style={styles.field}>
+            <TextInput label="Address *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.address} mode="outlined" multiline numberOfLines={3} />
             {errors.address && <HelperText type="error">{errors.address.message}</HelperText>}
           </View>
         )} />
 
         <Controller control={control} name="phoneNo" render={({ field: { onChange, onBlur, value } }) => (
-          <View className="mb-4">
-            <TextInput label="Phone No *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.phoneNo} keyboardType="phone-pad" />
+          <View style={styles.field}>
+            <TextInput label="Phone No *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.phoneNo} keyboardType="phone-pad" mode="outlined" />
             {errors.phoneNo && <HelperText type="error">{errors.phoneNo.message}</HelperText>}
           </View>
         )} />
 
-        {/* --- Updated Geolocation Section --- */}
-        <View className="flex-row gap-4">
-          <Controller control={control} name="latitude" render={({ field: { value } }) => (<TextInput label="Latitude" value={value ? String(value) : ''} editable={false} className="flex-1 mb-4" />)} />
-          <Controller control={control} name="longitude" render={({ field: { value } }) => (<TextInput label="Longitude" value={value ? String(value) : ''} editable={false} className="flex-1 mb-4" />)} />
+        {/* Geolocation */}
+        <View style={styles.row}>
+          <Controller control={control} name="latitude" render={({ field: { value } }) => (
+            <TextInput label="Latitude" value={value !== null && value !== undefined ? String(value) : ''} editable={false} style={styles.flexInput} mode="outlined" />
+          )} />
+          <Controller control={control} name="longitude" render={({ field: { value } }) => (
+            <TextInput label="Longitude" value={value !== null && value !== undefined ? String(value) : ''} editable={false} style={styles.flexInput} mode="outlined" />
+          )} />
         </View>
-        <Button icon="crosshairs-gps" mode="outlined" onPress={useMyLocation} loading={isLoadingLocation} disabled={isLoadingLocation} className="mb-4">
+        <Button icon="crosshairs-gps" mode="outlined" onPress={useMyLocation} loading={isLoadingLocation} disabled={isLoadingLocation} style={styles.locButton}>
           {isLoadingLocation ? 'Fetching Location...' : 'Use My Current Location'}
         </Button>
-        {/* --- End Updated Section --- */}
 
-        <View className="flex-row gap-4">
+        <View style={styles.row}>
           <Controller control={control} name="totalPotential" render={({ field: { onChange, onBlur, value } }) => (
-            <View className="flex-1 mb-4">
+            <View style={styles.halfField}>
               <TextInput
                 label="Total Potential *"
-                value={String(value || '')}
+                value={value !== undefined && value !== null ? String(value) : ''}
                 onChangeText={(text) => {
                   const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
                   onChange(isNaN(num) ? undefined : num);
@@ -268,15 +273,16 @@ export default function AddDealerForm() {
                 onBlur={onBlur}
                 error={!!errors.totalPotential}
                 keyboardType="numeric"
+                mode="outlined"
               />
               {errors.totalPotential && <HelperText type="error">{errors.totalPotential.message}</HelperText>}
             </View>
           )} />
           <Controller control={control} name="bestPotential" render={({ field: { onChange, onBlur, value } }) => (
-            <View className="flex-1 mb-4">
+            <View style={styles.halfField}>
               <TextInput
                 label="Best Potential *"
-                value={String(value || '')}
+                value={value !== undefined && value !== null ? String(value) : ''}
                 onChangeText={(text) => {
                   const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
                   onChange(isNaN(num) ? undefined : num);
@@ -284,38 +290,136 @@ export default function AddDealerForm() {
                 onBlur={onBlur}
                 error={!!errors.bestPotential}
                 keyboardType="numeric"
+                mode="outlined"
               />
               {errors.bestPotential && <HelperText type="error">{errors.bestPotential.message}</HelperText>}
             </View>
           )} />
         </View>
 
-        <TouchableOpacity onPress={() => setBrandsModalVisible(true)} className="mb-4">
-          <TextInput label="Brands Selling *" editable={false} value={brandSelling.join(', ') || 'Select brands...'} error={!!errors.brandSelling} right={<TextInput.Icon icon="chevron-down" />} />
-          {errors.brandSelling && <HelperText type="error">{errors.brandSelling.message}</HelperText>}
+        <TouchableOpacity onPress={() => setBrandsModalVisible(true)}>
+          <TextInput label="Brands Selling *" editable={false} value={brandSelling?.join(', ') || 'Select brands...'} mode="outlined" right={<TextInput.Icon icon="chevron-down" />} />
         </TouchableOpacity>
+        {errors.brandSelling && <HelperText type="error">{errors.brandSelling.message}</HelperText>}
 
         <Controller control={control} name="feedbacks" render={({ field: { onChange, value } }) => (
-          <View className="mb-4">
-            <View className="p-3 bg-slate-800 rounded-lg border border-slate-600">
-              <RNPickerSelect onValueChange={onChange} value={value} items={FEEDBACKS.map(f => ({ label: f, value: f }))} placeholder={{ label: "Select Feedback *", value: null }} style={{ inputIOS: { color: 'white' }, inputAndroid: { color: 'white' } }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color="#94a3b8" />} />
+          <View style={styles.field}>
+            <View style={[styles.pickerWrapper, { backgroundColor: theme.colors.surface, borderColor: errors.feedbacks ? theme.colors.error : theme.colors.outlineVariant }]}>
+              <RNPickerSelect
+                onValueChange={onChange}
+                value={value}
+                items={FEEDBACKS.map(f => ({ label: f, value: f }))}
+                placeholder={{ label: "Select Feedback *", value: null }}
+                style={pickerSelectStyles(theme)}
+                useNativeAndroidPickerStyle={false}
+                Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+              />
             </View>
             {errors.feedbacks && <HelperText type="error">{errors.feedbacks.message}</HelperText>}
           </View>
         )} />
 
         <Controller control={control} name="remarks" render={({ field: { onChange, onBlur, value } }) => (
-          <View className="mb-4">
-            <TextInput label="Remarks" value={value || ''} onChangeText={onChange} onBlur={onBlur} multiline numberOfLines={3} />
+          <View style={styles.field}>
+            <TextInput label="Remarks" value={value || ''} onChangeText={onChange} onBlur={onBlur} multiline numberOfLines={3} mode="outlined" />
             {errors.remarks && <HelperText type="error">{errors.remarks.message}</HelperText>}
           </View>
         )} />
 
-        <Button mode="contained" onPress={handleSubmit(submit)} loading={isSubmitting} disabled={!isValid || isSubmitting} className="mt-2 p-1">
+        <Button mode="contained" onPress={handleSubmit(submit)} loading={isSubmitting} disabled={!isValid || isSubmitting} style={styles.saveButton}>
           Save Dealer
         </Button>
+
+        <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  formWrapper: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  heading: {
+    textAlign: 'center',
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  subHeading: {
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  field: {
+    marginBottom: 12,
+  },
+  halfField: {
+    flex: 1,
+    marginBottom: 12,
+  },
+  label: {
+    fontSize: 16,
+  },
+  pickerWrapper: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingVertical: Platform.OS === 'android' ? 6 : 8,
+    paddingHorizontal: 12,
+  },
+  modalContainer: {
+    padding: 18,
+    margin: 20,
+    borderRadius: 8,
+  },
+  modalTitle: {
+    marginBottom: 8,
+  },
+  doneButton: {
+    marginTop: 12,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+  },
+  checkboxItem: {
+    borderRadius: 6,
+    marginVertical: 2,
+  },
+  locButton: {
+    marginBottom: 12,
+  },
+  flexInput: {
+    flex: 1,
+  },
+  saveButton: {
+    marginTop: 8,
+  },
+});
+
+const pickerSelectStyles = (theme: any) => ({
+  inputIOS: {
+    color: theme.colors.onSurface,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  inputAndroid: {
+    color: theme.colors.onSurface,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  placeholder: {
+    color: theme.colors.onSurfaceVariant,
+  },
+  iconContainer: {
+    top: 10,
+    right: 12,
+  },
+});

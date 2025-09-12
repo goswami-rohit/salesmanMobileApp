@@ -1,5 +1,5 @@
 // src/pages/ProfilePage.tsx
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -7,418 +7,99 @@ import {
   TouchableOpacity,
   StatusBar as RNStatusBar,
   StyleSheet,
-  Animated,
-  Easing,
-  Platform,
-  Vibration,
-  Dimensions,
+  Alert,
 } from 'react-native';
-import { Avatar, Button, Card, Chip, Portal, Modal, Text } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { Avatar, Button, Text, useTheme, Portal, Modal, Card } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { ComponentProps } from 'react';
 
 import type { MainTabsParamList, AppStackParamList } from '../components/ReusableConstants';
 import { useAppStore, fetchUserById } from '../components/ReusableConstants';
 import LeaveApplicationForm from '../pages/forms/LeaveApplicationForm';
+import AppHeader from '../components/AppHeader';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 type ProfileScreenProps = BottomTabScreenProps<MainTabsParamList, 'Profile'>;
 
-// Enhanced Animated Avatar Component
-const AnimatedAvatar: React.FC<{ initials: string }> = ({ initials }) => {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Pulse animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Glow animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.5,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Subtle rotation
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 20000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-  }, []);
-
+// --- Avatar Component ---
+const UserAvatar: React.FC<{ initials: string; theme: any }> = ({ initials, theme }) => {
   return (
-    <Animated.View
-      style={[
-        styles.avatarContainer,
-        {
-          transform: [
-            { scale: pulseAnim },
-            {
-              rotate: rotateAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: ['0deg', '360deg'],
-              }),
-            },
-          ],
-          opacity: glowAnim,
-        },
-      ]}
-    >
-      <LinearGradient
-        colors={['#06b6d4', '#0891b2', '#0e7490']}
-        style={styles.avatarGradient}
-      >
-        <Text style={styles.avatarText}>{initials}</Text>
-      </LinearGradient>
-      
-      {/* Glow ring */}
-      <Animated.View
-        style={[
-          styles.avatarRing,
-          {
-            opacity: glowAnim.interpolate({
-              inputRange: [0.5, 1],
-              outputRange: [0.3, 0.8],
-            }),
-            transform: [{
-              scale: glowAnim.interpolate({
-                inputRange: [0.5, 1],
-                outputRange: [1, 1.1],
-              }),
-            }],
-          },
-        ]}
-      />
-    </Animated.View>
-  );
-};
-
-// Enhanced Animated StatTile Component
-const AnimatedStatTile: React.FC<{
-  iconName: string;
-  value: number;
-  label: string;
-  color: string;
-  index: number;
-}> = ({ iconName, value, label, color, index }) => {
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const countAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Staggered entrance
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 600,
-      delay: index * 150,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-
-    // Count up animation
-    Animated.timing(countAnim, {
-      toValue: value,
-      duration: 1000,
-      delay: index * 150 + 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-
-    // Glow animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000 + index * 300,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.5,
-          duration: 2000 + index * 300,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [index, value]);
-
-  const handlePress = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-      Vibration.vibrate(30);
-    }
-
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 300,
-        friction: 10,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  return (
-    <Animated.View
-      style={[
-        styles.statTileContainer,
-        {
-          transform: [
-            { translateY: slideAnim },
-            { scale: scaleAnim }
-          ],
-        },
-      ]}
-    >
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
-        <BlurView intensity={15} tint="dark" style={styles.statTileBlur}>
-          <LinearGradient
-            colors={[
-              `rgba(${color}, 0.2)`,
-              `rgba(${color}, 0.1)`,
-              'rgba(15, 23, 42, 0.3)',
-            ]}
-            style={styles.statTileGradient}
-          >
-            <Animated.View
-              style={[
-                styles.statIconContainer,
-                {
-                  opacity: glowAnim,
-                  transform: [{
-                    scale: glowAnim.interpolate({
-                      inputRange: [0.5, 1],
-                      outputRange: [1, 1.1],
-                    }),
-                  }],
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={[`rgb(${color})`, `rgba(${color}, 0.8)`]}
-                style={styles.statIconGradient}
-              >
-                <MaterialCommunityIcons name={iconName} size={20} color="white" />
-              </LinearGradient>
-            </Animated.View>
-
-            <View style={styles.statTextContainer}>
-              <Animated.Text style={[styles.statValue, { color: `rgb(${color})` }]}>
-                {Math.round(countAnim._value)}
-              </Animated.Text>
-              <Text style={styles.statLabel}>{label}</Text>
-            </View>
-          </LinearGradient>
-        </BlurView>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-// Enhanced Progress Bar Component
-const AnimatedProgressBar: React.FC<{
-  progress: number;
-  color: string;
-  delay?: number;
-}> = ({ progress, color, delay = 0 }) => {
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-
-  useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: progress,
-      duration: 1500,
-      delay,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.5,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [progress, delay]);
-
-  return (
-    <View style={styles.progressContainer}>
-      <BlurView intensity={10} tint="dark" style={styles.progressBlur}>
-        <Animated.View
-          style={[
-            styles.progressFill,
-            {
-              width: progressAnim.interpolate({
-                inputRange: [0, 100],
-                outputRange: ['0%', '100%'],
-              }),
-              opacity: glowAnim,
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={[color, `${color}CC`, `${color}99`]}
-            style={styles.progressGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          />
-        </Animated.View>
-      </BlurView>
+    <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primary }]}>
+      <Text style={[styles.avatarText, { color: theme.colors.onPrimary }]}>{initials}</Text>
     </View>
   );
 };
 
-// Enhanced Action Button Component
-const AnimatedActionButton: React.FC<{
-  icon: string;
-  title: string;
-  onPress: () => void;
+// --- Stat Tile Component ---
+const StatTile: React.FC<{
+  iconName: IconName;
+  value: number;
+  label: string;
   color: string;
-}> = ({ icon, title, onPress, color }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.5,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const handlePress = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } else {
-      Vibration.vibrate(50);
-    }
-
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 300,
-        friction: 10,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    onPress();
-  };
-
+  theme: any;
+}> = ({ iconName, value, label, color, theme }) => {
   return (
-    <Animated.View
-      style={[
-        styles.actionButtonContainer,
-        { transform: [{ scale: scaleAnim }] }
-      ]}
-    >
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
-        <BlurView intensity={15} tint="dark" style={styles.actionButtonBlur}>
-          <Animated.View
-            style={[
-              styles.actionButtonContent,
-              {
-                backgroundColor: glowAnim.interpolate({
-                  inputRange: [0.5, 1],
-                  outputRange: [`rgba(${color}, 0.1)`, `rgba(${color}, 0.2)`],
-                }),
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={[`rgb(${color})`, `rgba(${color}, 0.8)`]}
-              style={styles.actionIconGradient}
-            >
-              <MaterialCommunityIcons name={icon} size={20} color="white" />
-            </LinearGradient>
-            <Text style={[styles.actionButtonText, { color: `rgb(${color})` }]}>
-              {title}
-            </Text>
-          </Animated.View>
-        </BlurView>
-      </TouchableOpacity>
-    </Animated.View>
+    <View style={[styles.statTileContainer, { borderColor: theme.colors.outlineVariant }]}>
+      <Card style={[styles.statCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+        <View style={[styles.statIconContainer, { backgroundColor: color }]}>
+          <MaterialCommunityIcons name={iconName} size={20} color={theme.colors.onPrimary} />
+        </View>
+        <View style={styles.statTextContainer}>
+          <Text style={[styles.statValue, { color: theme.colors.onSurface }]}>{value}</Text>
+          <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>{label}</Text>
+        </View>
+      </Card>
+    </View>
   );
 };
 
-// Main Component
+// --- Progress Bar Component ---
+const ProgressBar: React.FC<{
+  progress: number;
+  color: string;
+  theme: any;
+}> = ({ progress, color, theme }) => {
+  return (
+    <View style={[styles.progressContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
+      <View
+        style={[
+          styles.progressFill,
+          { width: `${progress}%`, backgroundColor: color },
+        ]}
+      />
+    </View>
+  );
+};
+
+// --- Action Button Component ---
+const ActionButton: React.FC<{
+  icon: IconName;
+  title: string;
+  onPress: () => void;
+  color: string;
+  theme: any;
+}> = ({ icon, title, onPress, color, theme }) => {
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.actionButtonContainer, { borderColor: theme.colors.outline }]} activeOpacity={0.7}>
+      <View style={[styles.actionButtonContent, { backgroundColor: theme.colors.surfaceVariant }]}>
+        <View style={[styles.actionIconContainer, { backgroundColor: color }]}>
+          <MaterialCommunityIcons name={icon} size={20} color={theme.colors.onPrimary} />
+        </View>
+        <Text style={[styles.actionButtonText, { color: theme.colors.onSurface }]}>{title}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// --- Main Component ---
 export default function ProfileScreen({ navigation }: ProfileScreenProps) {
+  const theme = useTheme();
   const { user, reports, dealers, pjps, dailyTasks, dashboardStats, userTargets, setUser } = useAppStore();
   const [openLeave, setOpenLeave] = useState(false);
-
-  const containerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loadUser = async () => {
@@ -435,266 +116,185 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       }
     };
     loadUser();
-
-    // Entrance animation
-    Animated.timing(containerAnim, {
-      toValue: 1,
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
   }, [user, setUser]);
 
   const handleLogout = useCallback(async () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    } else {
-      Vibration.vibrate(100);
-    }
-
-    await AsyncStorage.clear();
-    setUser(null);
-    const parentNav = navigation.getParent<NativeStackNavigationProp<AppStackParamList>>();
-    parentNav?.navigate({ name: 'Login', params: { onLoginSuccess: () => {} } });
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to log out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.clear();
+            setUser(null);
+            const parentNav = navigation.getParent<NativeStackNavigationProp<AppStackParamList>>();
+            parentNav?.navigate({ name: 'Login', params: { onLoginSuccess: () => { } } });
+          }
+        },
+      ]
+    );
   }, [navigation, setUser]);
 
   const initials = `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase();
 
-  const statsData = [
-    { iconName: 'file-document-outline', value: (reports || []).length, label: 'Reports', color: '6, 182, 212' },
-    { iconName: 'storefront-outline', value: (dealers || []).length, label: 'Dealers', color: '16, 185, 129' },
-    { iconName: 'map-marker-distance', value: (pjps || []).length, label: 'PJPs', color: '251, 191, 36' },
-    { iconName: 'check-circle-outline', value: (dailyTasks || []).filter((t: any) => t.status === 'Completed').length, label: 'Tasks Done', color: '168, 85, 247' },
-  ];
+  const statsData: {
+    iconName: IconName;
+    value: number;
+    label: string;
+    color: string;
+  }[] = [
+      { iconName: 'file-document-outline', value: (reports || []).length, label: 'Reports', color: theme.colors.primary },
+      { iconName: 'storefront-outline', value: (dealers || []).length, label: 'Dealers', color: '#10b981' },
+      { iconName: 'map-marker-distance', value: (pjps || []).length, label: 'PJPs', color: '#f59e0b' },
+      { iconName: 'check-circle-outline', value: (dailyTasks || []).filter((t: any) => t.status === 'Completed').length, label: 'Tasks Done', color: '#a855f7' },
+    ];
 
   return (
-    <Animated.View style={[styles.container, { opacity: containerAnim }]}>
-      <RNStatusBar barStyle="light-content" backgroundColor="#0f172a" />
-      
-      {/* Background Gradient */}
-      <LinearGradient
-        colors={['#0f172a', '#1e293b', '#334155']}
-        style={styles.backgroundGradient}
-      />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+      <RNStatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      <AppHeader title="Profile Page" />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Profile Header */}
+        <Card style={[styles.headerCard, { backgroundColor: theme.colors.surface }]} elevation={4}>
+          <View style={styles.header}>
+            <UserAvatar initials={initials} theme={theme} />
+            <Text style={[styles.name, { color: theme.colors.onSurface }]}>
+              {user?.firstName} {user?.lastName}
+            </Text>
+            <Text style={[styles.email, { color: theme.colors.onSurfaceVariant }]}>{user?.email}</Text>
+            <View style={[styles.roleChip, { backgroundColor: theme.colors.primaryContainer }]}>
+              <MaterialCommunityIcons name="account-tie" size={16} color={theme.colors.onPrimaryContainer} />
+              <Text style={[styles.roleText, { color: theme.colors.onPrimaryContainer }]}>{user?.role ?? 'Agent'}</Text>
+            </View>
+          </View>
+        </Card>
 
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView 
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Enhanced Profile Header */}
-          <BlurView intensity={20} tint="dark" style={styles.headerBlur}>
-            <LinearGradient
-              colors={['rgba(6, 182, 212, 0.2)', 'rgba(6, 182, 212, 0.1)']}
-              style={styles.headerGradient}
-            >
-              <View style={styles.header}>
-                <AnimatedAvatar initials={initials} />
-                
-                <Text style={styles.name}>
-                  {user?.firstName} {user?.lastName}
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          {statsData.map((stat) => (
+            <StatTile
+              key={stat.label}
+              iconName={stat.iconName}
+              value={stat.value}
+              label={stat.label}
+              color={stat.color}
+              theme={theme}
+            />
+          ))}
+        </View>
+
+        {/* Performance Card */}
+        <Card style={[styles.performanceCard, { backgroundColor: theme.colors.surface }]} elevation={4}>
+          <View style={styles.performanceHeader}>
+            <View style={[styles.performanceIconContainer, { backgroundColor: theme.colors.secondary }]}>
+              <MaterialCommunityIcons name="trophy-award" size={20} color={theme.colors.onSecondary} />
+            </View>
+            <Text style={[styles.performanceTitle, { color: theme.colors.onSurface }]}>PERFORMANCE</Text>
+          </View>
+          {dashboardStats?.attendance && (
+            <View style={styles.attendanceRow}>
+              <View style={styles.attendanceLeft}>
+                <MaterialCommunityIcons name="clock-outline" size={16} color={theme.colors.onSurfaceVariant} />
+                <Text style={[styles.attendanceLabel, { color: theme.colors.onSurface }]}>Attendance</Text>
+              </View>
+              <View style={[styles.attendanceChip, { backgroundColor: dashboardStats.attendance.isPresent ? theme.colors.secondaryContainer : theme.colors.errorContainer }]}>
+                <Text style={[styles.attendanceChipText, { color: dashboardStats.attendance.isPresent ? theme.colors.onSecondaryContainer : theme.colors.onErrorContainer }]}>
+                  {dashboardStats.attendance.isPresent ? 'ACTIVE' : 'OFFLINE'}
                 </Text>
-                
-                <Text style={styles.email}>{user?.email}</Text>
-                
-                <BlurView intensity={10} tint="dark" style={styles.roleChipBlur}>
-                  <LinearGradient
-                    colors={['rgba(6, 182, 212, 0.3)', 'rgba(6, 182, 212, 0.2)']}
-                    style={styles.roleChipGradient}
-                  >
-                    <MaterialCommunityIcons name="account-tie" size={16} color="#06b6d4" />
-                    <Text style={styles.roleText}>{user?.role ?? 'Agent'}</Text>
-                  </LinearGradient>
-                </BlurView>
-
-                {/* Status Indicator */}
-                <View style={styles.statusContainer}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.statusText}>NEURAL LINK ACTIVE</Text>
-                </View>
               </View>
-            </LinearGradient>
-          </BlurView>
-
-          {/* Enhanced Stats Grid */}
-          <View style={styles.statsGrid}>
-            {statsData.map((stat, index) => (
-              <AnimatedStatTile
-                key={stat.label}
-                iconName={stat.iconName}
-                value={stat.value}
-                label={stat.label}
-                color={stat.color}
-                index={index}
-              />
-            ))}
-          </View>
-
-          {/* Enhanced Performance Card */}
-          <BlurView intensity={20} tint="dark" style={styles.performanceCardBlur}>
-            <LinearGradient
-              colors={[
-                'rgba(15, 23, 42, 0.9)',
-                'rgba(30, 41, 59, 0.8)',
-                'rgba(51, 65, 85, 0.7)',
-              ]}
-              style={styles.performanceCardGradient}
-            >
-              <View style={styles.performanceHeader}>
-                <LinearGradient
-                  colors={['#eab308', '#f59e0b']}
-                  style={styles.performanceIconGradient}
-                >
-                  <MaterialCommunityIcons name="trophy-award" size={20} color="white" />
-                </LinearGradient>
-                <Text style={styles.performanceTitle}>NEURAL PERFORMANCE</Text>
+            </View>
+          )}
+          {(userTargets || []).map((target: any, index: number) => {
+            const progress = Math.min(100, Math.round(((target.current ?? 0) / (target.target || 1)) * 100));
+            const progressColor = progress >= 80 ? '#10b981' : progress >= 60 ? '#f59e0b' : '#ef4444';
+            return (
+              <View key={index} style={styles.targetContainer}>
+                <View style={styles.targetRow}>
+                  <View style={styles.targetLeft}>
+                    <MaterialCommunityIcons name={target.icon || 'target'} size={16} color={theme.colors.onSurfaceVariant} />
+                    <Text style={[styles.targetLabel, { color: theme.colors.onSurface }]}>{target.label}</Text>
+                  </View>
+                  <Text style={[styles.targetValue, { color: theme.colors.onSurfaceVariant }]}>
+                    {target.current} / {target.target}
+                  </Text>
+                </View>
+                <ProgressBar progress={progress} color={progressColor} theme={theme} />
               </View>
+            );
+          })}
+        </Card>
 
-              {dashboardStats?.attendance && (
-                <View style={styles.attendanceRow}>
-                  <View style={styles.attendanceLeft}>
-                    <MaterialCommunityIcons name="clock-outline" size={16} color="#06b6d4" />
-                    <Text style={styles.attendanceLabel}>Neural Link Status</Text>
-                  </View>
-                  <BlurView intensity={10} tint="dark" style={styles.attendanceChipBlur}>
-                    <LinearGradient
-                      colors={dashboardStats.attendance.isPresent 
-                        ? ['rgba(16, 185, 129, 0.3)', 'rgba(16, 185, 129, 0.2)']
-                        : ['rgba(239, 68, 68, 0.3)', 'rgba(239, 68, 68, 0.2)']
-                      }
-                      style={styles.attendanceChipGradient}
-                    >
-                      <Text style={[
-                        styles.attendanceChipText,
-                        { color: dashboardStats.attendance.isPresent ? '#10b981' : '#ef4444' }
-                      ]}>
-                        {dashboardStats.attendance.isPresent ? 'ACTIVE' : 'OFFLINE'}
-                      </Text>
-                    </LinearGradient>
-                  </BlurView>
-                </View>
-              )}
+        {/* Action Buttons */}
+        <View style={styles.actionsContainer}>
+          <ActionButton
+            icon="clipboard-list-outline"
+            title="Apply for Leave"
+            onPress={() => setOpenLeave(true)}
+            color={theme.colors.primary}
+            theme={theme}
+          />
+          <ActionButton
+            icon="package-variant-closed"
+            title="Brand Mapping"
+            onPress={() => console.log('Brand mapping')}
+            color='#10b981'
+            theme={theme}
+          />
+        </View>
 
-              {(userTargets || []).map((target: any, index: number) => {
-                const progress = Math.min(100, Math.round(((target.current ?? 0) / (target.target || 1)) * 100));
-                const progressColor = progress >= 80 ? '#10b981' : progress >= 60 ? '#f59e0b' : '#ef4444';
-                
-                return (
-                  <View key={index} style={styles.targetContainer}>
-                    <View style={styles.targetRow}>
-                      <View style={styles.targetLeft}>
-                        <MaterialCommunityIcons 
-                          name={target.icon || 'target'} 
-                          size={16} 
-                          color={target.color || '#06b6d4'} 
-                        />
-                        <Text style={styles.targetLabel}>{target.label}</Text>
-                      </View>
-                      <Text style={styles.targetValue}>
-                        {target.current} / {target.target}
-                      </Text>
-                    </View>
-                    <AnimatedProgressBar
-                      progress={progress}
-                      color={progressColor}
-                      delay={index * 200}
-                    />
-                  </View>
-                );
-              })}
-            </LinearGradient>
-          </BlurView>
+        {/* Empty States */}
+        <View style={styles.emptyStatesContainer}>
+          <Card style={[styles.emptyStateCard, { backgroundColor: theme.colors.surfaceVariant }]} elevation={2}>
+            <Text style={[styles.emptyStateTitle, { color: theme.colors.onSurface }]}>Leave Applications</Text>
+            <View style={styles.emptyStateContent}>
+              <MaterialCommunityIcons name="clipboard-list-outline" size={36} color={theme.colors.onSurfaceVariant} />
+              <Text style={[styles.emptyStateText, { color: theme.colors.onSurfaceVariant }]}>No leave applications in neural database</Text>
+            </View>
+          </Card>
+          <Card style={[styles.emptyStateCard, { backgroundColor: theme.colors.surfaceVariant }]} elevation={2}>
+            <Text style={[styles.emptyStateTitle, { color: theme.colors.onSurface }]}>Dealer-Brand Mapping</Text>
+            <View style={styles.emptyStateContent}>
+              <MaterialCommunityIcons name="package-variant-closed" size={36} color={theme.colors.onSurfaceVariant} />
+              <Text style={[styles.emptyStateText, { color: theme.colors.onSurfaceVariant }]}>No neural mappings configured</Text>
+            </View>
+          </Card>
+        </View>
 
-          {/* Enhanced Action Buttons */}
-          <View style={styles.actionsContainer}>
-            <AnimatedActionButton
-              icon="clipboard-list-outline"
-              title="Apply for Leave"
-              onPress={() => setOpenLeave(true)}
-              color="6, 182, 212"
-            />
+        {/* Logout Button */}
+        <View style={styles.logoutContainer}>
+          <Button
+            mode="contained"
+            onPress={handleLogout}
+            style={[styles.logoutButton, { backgroundColor: theme.colors.error }]}
+            icon="power"
+          >
+            LOG OUT
+          </Button>
+        </View>
+      </ScrollView>
 
-            <AnimatedActionButton
-              icon="package-variant-closed"
-              title="Brand Mapping"
-              onPress={() => console.log('Brand mapping')}
-              color="16, 185, 129"
-            />
-          </View>
-
-          {/* Enhanced Empty States */}
-          <View style={styles.emptyStatesContainer}>
-            <BlurView intensity={15} tint="dark" style={styles.emptyStateBlur}>
-              <LinearGradient
-                colors={['rgba(15, 23, 42, 0.8)', 'rgba(30, 41, 59, 0.6)']}
-                style={styles.emptyStateGradient}
-              >
-                <Text style={styles.emptyStateTitle}>Leave Applications</Text>
-                <View style={styles.emptyStateContent}>
-                  <MaterialCommunityIcons name="clipboard-list-outline" size={36} color="#64748b" />
-                  <Text style={styles.emptyStateText}>No leave applications in neural database</Text>
-                </View>
-              </LinearGradient>
-            </BlurView>
-
-            <BlurView intensity={15} tint="dark" style={styles.emptyStateBlur}>
-              <LinearGradient
-                colors={['rgba(15, 23, 42, 0.8)', 'rgba(30, 41, 59, 0.6)']}
-                style={styles.emptyStateGradient}
-              >
-                <Text style={styles.emptyStateTitle}>Dealer-Brand Mapping</Text>
-                <View style={styles.emptyStateContent}>
-                  <MaterialCommunityIcons name="package-variant-closed" size={36} color="#64748b" />
-                  <Text style={styles.emptyStateText}>No neural mappings configured</Text>
-                </View>
-              </LinearGradient>
-            </BlurView>
-          </View>
-
-          {/* Enhanced Logout Button */}
-          <View style={styles.logoutContainer}>
-            <TouchableOpacity onPress={handleLogout} activeOpacity={0.8}>
-              <BlurView intensity={15} tint="dark" style={styles.logoutBlur}>
-                <LinearGradient
-                  colors={['rgba(239, 68, 68, 0.3)', 'rgba(220, 38, 38, 0.2)']}
-                  style={styles.logoutGradient}
-                >
-                  <MaterialCommunityIcons name="power" size={20} color="#ef4444" />
-                  <Text style={styles.logoutText}>NEURAL DISCONNECT</Text>
-                </LinearGradient>
-              </BlurView>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-
-      {/* Enhanced Modal */}
+      {/* Modal */}
       <Portal>
-        <Modal 
-          visible={openLeave} 
-          onDismiss={() => setOpenLeave(false)} 
-          contentContainerStyle={styles.modal}
+        <Modal
+          visible={openLeave}
+          onDismiss={() => setOpenLeave(false)}
+          contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.background }]}
         >
-          <BlurView intensity={25} tint="dark" style={styles.modalBlur}>
-            <LeaveApplicationForm 
-              userId={user?.id} 
-              onSubmitted={() => setOpenLeave(false)} 
-              onCancel={() => setOpenLeave(false)} 
-            />
-          </BlurView>
+          <LeaveApplicationForm
+            userId={user?.id}
+            onSubmitted={() => setOpenLeave(false)}
+            onCancel={() => setOpenLeave(false)}
+          />
         </Modal>
       </Portal>
-    </Animated.View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  backgroundGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
   safeArea: {
     flex: 1,
   },
@@ -702,110 +302,48 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     paddingHorizontal: 16,
   },
-  headerBlur: {
-    borderRadius: 20,
+  headerCard: {
     marginVertical: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    overflow: 'hidden',
-  },
-  headerGradient: {
-    padding: 24,
+    borderRadius: 16,
   },
   header: {
     alignItems: 'center',
+    padding: 24,
   },
   avatarContainer: {
-    marginBottom: 16,
-    position: 'relative',
-  },
-  avatarGradient: {
     width: 96,
     height: 96,
     borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    marginBottom: 16,
   },
   avatarText: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: 'white',
-    letterSpacing: 2,
-  },
-  avatarRing: {
-    position: 'absolute',
-    width: 106,
-    height: 106,
-    borderRadius: 53,
-    borderWidth: 2,
-    borderColor: '#06b6d4',
-    top: -5,
-    left: -5,
   },
   name: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: 'white',
     marginBottom: 4,
-    letterSpacing: 0.5,
   },
   email: {
     fontSize: 14,
-    color: '#94a3b8',
     marginBottom: 12,
   },
-  roleChipBlur: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  roleChipGradient: {
+  roleChip: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
+    borderRadius: 16,
     gap: 8,
+    marginBottom: 12,
   },
   roleText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#06b6d4',
     letterSpacing: 0.5,
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10b981',
-    marginRight: 8,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#10b981',
-    letterSpacing: 1,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -816,34 +354,20 @@ const styles = StyleSheet.create({
   statTileContainer: {
     width: '48%',
     marginBottom: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
   },
-  statTileBlur: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.2)',
-    overflow: 'hidden',
-  },
-  statTileGradient: {
+  statCard: {
+    borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
   },
   statIconContainer: {
-    marginRight: 12,
-  },
-  statIconGradient: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    marginRight: 12,
   },
   statTextContainer: {
     flex: 1,
@@ -855,41 +379,29 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: '#94a3b8',
     marginTop: 2,
   },
-  performanceCardBlur: {
-    borderRadius: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    overflow: 'hidden',
-  },
-  performanceCardGradient: {
+  performanceCard: {
+    borderRadius: 16,
     padding: 20,
+    marginBottom: 20,
   },
   performanceHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
   },
-  performanceIconGradient: {
+  performanceIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-    elevation: 4,
-    shadowColor: '#eab308',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
   },
   performanceTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#06b6d4',
     letterSpacing: 1,
   },
   attendanceRow: {
@@ -904,17 +416,12 @@ const styles = StyleSheet.create({
   },
   attendanceLabel: {
     fontSize: 14,
-    color: 'white',
     marginLeft: 8,
   },
-  attendanceChipBlur: {
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  attendanceChipGradient: {
+  attendanceChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
+    borderRadius: 12,
   },
   attendanceChipText: {
     fontSize: 12,
@@ -936,29 +443,19 @@ const styles = StyleSheet.create({
   },
   targetLabel: {
     fontSize: 14,
-    color: 'white',
     marginLeft: 8,
   },
   targetValue: {
     fontSize: 12,
-    color: '#94a3b8',
   },
   progressContainer: {
     height: 8,
     borderRadius: 8,
     overflow: 'hidden',
   },
-  progressBlur: {
-    flex: 1,
-    borderRadius: 8,
-    backgroundColor: 'rgba(51, 65, 85, 0.5)',
-  },
   progressFill: {
     height: '100%',
     borderRadius: 8,
-  },
-  progressGradient: {
-    flex: 1,
   },
   actionsContainer: {
     flexDirection: 'row',
@@ -968,33 +465,21 @@ const styles = StyleSheet.create({
   },
   actionButtonContainer: {
     flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  actionButtonBlur: {
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    overflow: 'hidden',
+    padding: 16,
   },
   actionButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
     gap: 12,
   },
-  actionIconGradient: {
+  actionIconContainer: {
     width: 32,
     height: 32,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
   },
   actionButtonText: {
     fontSize: 12,
@@ -1005,19 +490,13 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 20,
   },
-  emptyStateBlur: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.2)',
-    overflow: 'hidden',
-  },
-  emptyStateGradient: {
+  emptyStateCard: {
+    borderRadius: 12,
     padding: 16,
   },
   emptyStateTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'white',
     marginBottom: 12,
   },
   emptyStateContent: {
@@ -1026,40 +505,19 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 12,
-    color: '#64748b',
     textAlign: 'center',
     marginTop: 8,
   },
   logoutContainer: {
     marginTop: 12,
   },
-  logoutBlur: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    overflow: 'hidden',
-  },
-  logoutGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  logoutText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#ef4444',
-    letterSpacing: 1,
+  logoutButton: {
+    borderRadius: 12,
+    paddingVertical: 4,
   },
   modal: {
-    margin: 20,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  modalBlur: {
-    borderRadius: 20,
+    marginHorizontal: 20,
+    borderRadius: 16,
     padding: 8,
   },
 });

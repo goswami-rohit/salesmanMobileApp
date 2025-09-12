@@ -13,7 +13,7 @@ import AppDrawer from "./components/SideDrawer";
 import LoginPage from "./pages/LoginPage";
 import theme from "./theme/paperTheme";
 
-import { AppStackParamList } from './components/ReusableConstants';
+import { AppStackParamList, useAppStore } from './components/ReusableConstants';
 
 // Create the navigator with the defined types
 const Stack = createNativeStackNavigator<AppStackParamList>();
@@ -35,7 +35,6 @@ const LoadingScreen = () => (
           color="#06b6d4"
           style={styles.spinner}
         />
-        {/* You could add your app logo here */}
       </View>
     </LinearGradient>
   </View>
@@ -43,26 +42,22 @@ const LoadingScreen = () => (
 
 export default function App() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { isAuthenticated, setIsAuthenticated } = useAppStore(); // <-- Get state from Zustand
 
-  // Enhanced auth-checking logic with better error handling
   useEffect(() => {
     let mounted = true;
     
     async function checkAuth() {
       try {
         const stored = await AsyncStorage.getItem("isAuthenticated");
-        if (stored === "true") {
-          if (mounted) setIsAuthenticated(true);
-        } else if (mounted) {
-          setIsAuthenticated(false);
+        if (mounted) {
+          setIsAuthenticated(stored === "true"); // <-- Set state via Zustand
         }
       } catch (err) {
         console.error("Auth check failed", err);
-        if (mounted) setIsAuthenticated(false);
+        if (mounted) setIsAuthenticated(false); // <-- Set state via Zustand
       } finally {
         if (mounted) {
-          // Small delay to prevent flash
           setTimeout(() => setIsCheckingAuth(false), 500);
         }
       }
@@ -72,11 +67,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, []);
-
-  const handleLoginSuccess = () => {
-    setIsAuthenticated(true);
-  };
+  }, [setIsAuthenticated]);
 
   if (isCheckingAuth) {
     return <LoadingScreen />;
@@ -94,7 +85,7 @@ export default function App() {
                 <Stack.Screen
                   name="Login"
                   component={LoginPage}
-                  initialParams={{ onLoginSuccess: handleLoginSuccess }}
+                  // No need to pass the function here, LoginPage will get it from Zustand
                 />
               )}
             </Stack.Navigator>

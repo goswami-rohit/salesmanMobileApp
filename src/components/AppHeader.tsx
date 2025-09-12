@@ -1,10 +1,8 @@
-// src/components/AppHeader.tsx 
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { Appbar, useTheme } from 'react-native-paper';
 import { useNavigation, DrawerActions } from '@react-navigation/native';
 
-// Explicitly define the props the component will accept
 type AppHeaderProps = {
   title: string;
 };
@@ -15,7 +13,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
 
   return (
     <Appbar.Header
-      style={{ backgroundColor: '#1e293b' }}
+      style={{ backgroundColor: theme.colors.surface }}
       statusBarHeight={0}
     >
       <Appbar.Action
@@ -23,7 +21,6 @@ export default function AppHeader({ title }: AppHeaderProps) {
         color={theme.colors.onSurface}
         onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
       />
-      {/* Appbar.Content handles title alignment automatically */}
       <Appbar.Content title={title} titleStyle={styles.title} />
       <Appbar.Action
         icon="bell-outline"
@@ -41,4 +38,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-

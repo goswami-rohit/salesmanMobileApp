@@ -1,414 +1,259 @@
 // src/pages/JourneyTrackerPage.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
-  Animated,
-  Easing,
   TouchableOpacity,
-  Platform,
-  Vibration,
-  Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { Text, Button, Card, useTheme, TextInput } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import RNPickerSelect from 'react-native-picker-select';
 
 import AppHeader from '../components/AppHeader';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+// --- Type Definitions (Reused from Web Page for Consistency) ---
+interface Dealer {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+interface Location {
+  lat: number;
+  lng: number;
+  address?: string;
+}
+type TripStatus = 'idle' | 'active' | 'completed';
 
-// Enhanced Journey Stats Card Component
-const JourneyStatsCard: React.FC<{
-  icon: string;
-  title: string;
-  value: string;
-  unit: string;
-  color: string;
-  index: number;
-}> = ({ icon, title, value, unit, color, index }) => {
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+// --- Reusable UI Components for the Journey Flow ---
 
-  useEffect(() => {
-    // Staggered entrance animation
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 600,
-      delay: index * 150,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+interface JourneyStatsProps {
+  distance: number;
+  duration: number;
+  theme: any;
+}
+const JourneyStats = ({ distance, duration, theme }: JourneyStatsProps) => (
+  <View style={styles.statsContainer}>
+    <View style={styles.statItem}>
+      <Icon name="map-marker-distance" size={24} color={theme.colors.primary} />
+      <Text style={[styles.statValue, { color: theme.colors.onSurface }]}>{distance.toFixed(2)} km</Text>
+      <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Distance</Text>
+    </View>
+    <View style={styles.statItem}>
+      <Icon name="clock-time-four-outline" size={24} color={theme.colors.secondary} />
+      <Text style={[styles.statValue, { color: theme.colors.onSurface }]}>{Math.round(duration / 60)} min</Text>
+      <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Duration</Text>
+    </View>
+  </View>
+);
 
-    // Continuous glow animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000 + index * 300,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.5,
-          duration: 2000 + index * 300,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [index]);
+interface TripPlanningCardProps {
+  dealers: Dealer[];
+  onDealerSelect: (dealerId: string) => void;
+  onStartTrip: () => void;
+  isLoadingLocation: boolean;
+  onGetCurrentLocation: () => void;
+  theme: any;
+}
+const TripPlanningCard = ({ dealers, onDealerSelect, onStartTrip, isLoadingLocation, onGetCurrentLocation, theme }: TripPlanningCardProps) => (
+  <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+    <Card.Title
+      title="Plan New Journey"
+      titleStyle={[styles.cardTitle, { color: theme.colors.onSurface }]}
+    />
+    <Card.Content>
+      <View style={styles.inputContainer}>
+        <TextInput
+          label="Current Location"
+          value="My Current Location"
+          editable={false}
+          right={<TextInput.Icon icon="crosshairs-gps" />}
+          style={styles.textInput}
+        />
+        <Button mode="contained-tonal" onPress={onGetCurrentLocation} loading={isLoadingLocation} style={styles.fetchButton}>
+          Fetch Location
+        </Button>
+      </View>
+      <View style={styles.inputContainer}>
+        <View style={[styles.pickerWrapper, { borderColor: theme.colors.outlineVariant }]}>
+          <RNPickerSelect
+            onValueChange={onDealerSelect}
+            items={dealers.map(d => ({ label: d.name, value: d.id }))}
+            placeholder={{ label: "Select Destination Dealer...", value: null }}
+            style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }}
+            useNativeAndroidPickerStyle={false}
+            Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurfaceVariant} />}
+          />
+        </View>
+      </View>
+      <Button mode="contained" onPress={onStartTrip} style={styles.actionButton}>
+        Start Tracking
+      </Button>
+    </Card.Content>
+  </Card>
+);
 
-  const handlePress = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } else {
-      Vibration.vibrate(30);
-    }
+interface ActiveTripCardProps {
+  dealer: Dealer;
+  distance: number;
+  duration: number;
+  onCompleteTrip: () => void;
+  theme: any;
+}
+const ActiveTripCard = ({ dealer, distance, duration, onCompleteTrip, theme }: ActiveTripCardProps) => (
+  <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+    <Card.Title
+      title="Active Journey"
+      subtitle={`To: ${dealer.name}`}
+      titleStyle={[styles.cardTitle, { color: theme.colors.onSurface }]}
+      subtitleStyle={{ color: theme.colors.onSurfaceVariant }}
+      left={(props) => <Icon name="map-marker-path" size={24} color={theme.colors.primary} />}
+    />
+    <Card.Content>
+      <JourneyStats distance={distance} duration={duration} theme={theme} />
+      <Button mode="contained" onPress={onCompleteTrip} style={[styles.actionButton, { backgroundColor: theme.colors.error }]}>
+        Complete Trip
+      </Button>
+    </Card.Content>
+  </Card>
+);
 
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 300,
-        friction: 10,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+interface CompletedTripCardProps {
+  distance: number;
+  duration: number;
+  onStartNew: () => void;
+  theme: any;
+}
+const CompletedTripCard = ({ distance, duration, onStartNew, theme }: CompletedTripCardProps) => (
+  <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+    <Card.Title
+      title="Journey Completed"
+      titleStyle={[styles.cardTitle, { color: theme.colors.onSurface }]}
+      left={(props) => <Icon name="check-circle" size={24} color={theme.colors.secondary} />}
+    />
+    <Card.Content>
+      <JourneyStats distance={distance} duration={duration} theme={theme} />
+      <Button mode="contained" onPress={onStartNew} style={styles.actionButton}>
+        Start New Journey
+      </Button>
+    </Card.Content>
+  </Card>
+);
 
-  return (
-    <Animated.View
-      style={[
-        styles.statsCard,
-        {
-          transform: [
-            { translateY: slideAnim },
-            { scale: scaleAnim }
-          ],
-        },
-      ]}
-    >
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
-        <BlurView intensity={15} tint="dark" style={styles.statsCardBlur}>
-          <LinearGradient
-            colors={[
-              `rgba(${color}, 0.2)`,
-              `rgba(${color}, 0.1)`,
-              'rgba(15, 23, 42, 0.3)',
-            ]}
-            style={styles.statsCardGradient}
-          >
-            <Animated.View
-              style={[
-                styles.iconContainer,
-                {
-                  opacity: glowAnim,
-                  transform: [{
-                    scale: glowAnim.interpolate({
-                      inputRange: [0.5, 1],
-                      outputRange: [1, 1.1],
-                    }),
-                  }],
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={[`rgb(${color})`, `rgba(${color}, 0.8)`]}
-                style={styles.iconGradient}
-              >
-                <MaterialCommunityIcons name={icon} size={24} color="white" />
-              </LinearGradient>
-            </Animated.View>
-
-            <Text style={styles.statsTitle}>{title}</Text>
-            <View style={styles.statsValueContainer}>
-              <Text style={[styles.statsValue, { color: `rgb(${color})` }]}>
-                {value}
-              </Text>
-              <Text style={styles.statsUnit}>{unit}</Text>
-            </View>
-          </LinearGradient>
-        </BlurView>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-// Enhanced Map Placeholder Component
-const MapPlaceholder: React.FC = () => {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const scanLineAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Pulse animation for the entire map
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.02,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Scanning line effect
-    Animated.loop(
-      Animated.timing(scanLineAnim, {
-        toValue: 1,
-        duration: 4000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-  }, []);
-
-  return (
-    <Animated.View
-      style={[
-        styles.mapContainer,
-        { transform: [{ scale: pulseAnim }] }
-      ]}
-    >
-      <BlurView intensity={20} tint="dark" style={styles.mapBlur}>
-        <LinearGradient
-          colors={[
-            'rgba(15, 23, 42, 0.9)',
-            'rgba(30, 41, 59, 0.8)',
-            'rgba(51, 65, 85, 0.7)',
-          ]}
-          style={styles.mapGradient}
-        >
-          {/* Grid pattern overlay */}
-          <View style={styles.gridPattern} />
-          
-          {/* Scanning line */}
-          <Animated.View
-            style={[
-              styles.scanLine,
-              {
-                opacity: scanLineAnim.interpolate({
-                  inputRange: [0, 0.5, 1],
-                  outputRange: [0, 1, 0],
-                }),
-                transform: [{
-                  translateY: scanLineAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-50, 250],
-                  }),
-                }],
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={[
-                'transparent',
-                'rgba(6, 182, 212, 0.8)',
-                'rgba(6, 182, 212, 1)',
-                'rgba(6, 182, 212, 0.8)',
-                'transparent'
-              ]}
-              style={styles.scanLineGradient}
-            />
-          </Animated.View>
-
-          {/* Central map icon */}
-          <View style={styles.mapIconContainer}>
-            <LinearGradient
-              colors={['#06b6d4', '#0891b2']}
-              style={styles.mapIconGradient}
-            >
-              <MaterialCommunityIcons name="map-marker-path" size={40} color="white" />
-            </LinearGradient>
-          </View>
-
-          {/* Map placeholder text */}
-          <Text style={styles.mapPlaceholderTitle}>GPS TRACKING SYSTEM</Text>
-          <Text style={styles.mapPlaceholderSubtitle}>
-            Neural mapping interface will display real-time location data
-          </Text>
-
-          {/* Mock location indicators */}
-          <View style={[styles.locationDot, { top: '20%', left: '30%' }]} />
-          <View style={[styles.locationDot, { top: '60%', right: '25%' }]} />
-          <View style={[styles.locationDot, { bottom: '30%', left: '20%' }]} />
-        </LinearGradient>
-      </BlurView>
-    </Animated.View>
-  );
-};
-
-// Enhanced Action Button Component
-const ActionButton: React.FC<{
-  icon: string;
-  label: string;
-  onPress: () => void;
-  color: string;
-}> = ({ icon, label, onPress, color }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.5,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sine),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const handlePress = () => {
-    if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } else {
-      Vibration.vibrate(50);
-    }
-
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 300,
-        friction: 10,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    onPress();
-  };
-
-  return (
-    <Animated.View
-      style={[
-        styles.actionButton,
-        { transform: [{ scale: scaleAnim }] }
-      ]}
-    >
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
-        <BlurView intensity={15} tint="dark" style={styles.actionButtonBlur}>
-          <Animated.View
-            style={[
-              styles.actionButtonContent,
-              {
-                backgroundColor: glowAnim.interpolate({
-                  inputRange: [0.5, 1],
-                  outputRange: [`rgba(${color}, 0.1)`, `rgba(${color}, 0.2)`],
-                }),
-              },
-            ]}
-          >
-            <MaterialCommunityIcons name={icon} size={20} color={`rgb(${color})`} />
-            <Text style={[styles.actionButtonText, { color: `rgb(${color})` }]}>
-              {label}
-            </Text>
-          </Animated.View>
-        </BlurView>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-// Main Component
+// --- Main Component ---
 export default function JourneyTrackerPage() {
-  const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const theme = useTheme();
+  
+  // States to mimic the web version's logic
+  const [tripStatus, setTripStatus] = useState<TripStatus>('idle');
+  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [selectedDealer, setSelectedDealer] = useState<Dealer | null>(null);
+  const [distance, setDistance] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
+  // Mock API calls to mimic the web version's functionality
   useEffect(() => {
-    Animated.timing(backgroundAnim, {
-      toValue: 1,
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    // Mock fetching dealers
+    const mockFetchDealers = () => {
+      setDealers([
+        { id: '1', name: 'Alpha Dealer', address: '123 Main St', latitude: 26.1445, longitude: 91.7362 },
+        { id: '2', name: 'Beta Motors', address: '456 Second Ave', latitude: 26.15, longitude: 91.74 },
+        { id: '3', name: 'Gamma Sales', address: '789 Third St', latitude: 26.13, longitude: 91.75 },
+      ]);
+    };
+    mockFetchDealers();
   }, []);
 
-  const statsData = [
-    { icon: 'speedometer', title: 'Speed', value: '45', unit: 'km/h', color: '6, 182, 212' },
-    { icon: 'map-marker-distance', title: 'Distance', value: '12.5', unit: 'km', color: '16, 185, 129' },
-    { icon: 'clock-time-four', title: 'Duration', value: '2h 15m', unit: '', color: '251, 191, 36' },
-    { icon: 'navigation', title: 'Direction', value: 'NE', unit: '45°', color: '239, 68, 68' },
-  ];
-
-  const handleStartJourney = () => {
-    console.log('Start journey tracking');
+  const mockGetCurrentLocation = () => {
+    setIsLoadingLocation(true);
+    setTimeout(() => {
+      // Mock location data
+      console.log("Mock location fetched.");
+      setIsLoadingLocation(false);
+    }, 1500);
   };
 
-  const handleViewHistory = () => {
-    console.log('View journey history');
+  const mockStartTrip = () => {
+    if (!selectedDealer) {
+      Alert.alert("Error", "Please select a dealer to start a journey.");
+      return;
+    }
+    setTripStatus('active');
+    // Start mock location tracking
+    console.log("Mock trip started.");
+    setTimeout(() => {
+      // Mock live data update
+      setDistance(1.5);
+      setDuration(120);
+    }, 1000);
+  };
+
+  const mockCompleteTrip = () => {
+    console.log("Mock trip completed.");
+    setTripStatus('completed');
+  };
+
+  const mockStartNewJourney = () => {
+    console.log("Starting a new mock journey.");
+    setTripStatus('idle');
+    setDistance(0);
+    setDuration(0);
+    setSelectedDealer(null);
+  };
+
+  const renderContent = () => {
+    switch (tripStatus) {
+      case 'idle':
+        return (
+          <TripPlanningCard
+            dealers={dealers}
+            onDealerSelect={(id) => setSelectedDealer(dealers.find(d => d.id === id) || null)}
+            onStartTrip={mockStartTrip}
+            isLoadingLocation={isLoadingLocation}
+            onGetCurrentLocation={mockGetCurrentLocation}
+            theme={theme}
+          />
+        );
+      case 'active':
+        return (
+          <ActiveTripCard
+            dealer={selectedDealer!}
+            distance={distance}
+            duration={duration}
+            onCompleteTrip={mockCompleteTrip}
+            theme={theme}
+          />
+        );
+      case 'completed':
+        return (
+          <CompletedTripCard
+            distance={distance}
+            duration={duration}
+            onStartNew={mockStartNewJourney}
+            theme={theme}
+          />
+        );
+    }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['right', 'bottom', 'left']}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['right', 'bottom', 'left']}>
       <AppHeader title="Journey Tracker" />
-      
-      <Animated.View 
-        style={[
-          styles.container,
-          { opacity: backgroundAnim }
-        ]}
-      >
-        {/* Stats Grid */}
-        <View style={styles.statsGrid}>
-          {statsData.map((stat, index) => (
-            <JourneyStatsCard
-              key={stat.title}
-              icon={stat.icon}
-              title={stat.title}
-              value={stat.value}
-              unit={stat.unit}
-              color={stat.color}
-              index={index}
-            />
-          ))}
+      <View style={styles.container}>
+        {/* Map Placeholder */}
+        <View style={[styles.mapPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
+          <Icon name="map-marker-path" size={48} color={theme.colors.primary} />
+          <Text style={[styles.mapText, { color: theme.colors.onSurfaceVariant }]}>Map is not yet implemented</Text>
         </View>
 
-        {/* Enhanced Map Section */}
-        <MapPlaceholder />
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtonsContainer}>
-          <ActionButton
-            icon="play-circle"
-            label="START TRACKING"
-            onPress={handleStartJourney}
-            color="6, 182, 212"
-          />
-          <ActionButton
-            icon="history"
-            label="VIEW HISTORY"
-            onPress={handleViewHistory}
-            color="16, 185, 129"
-          />
-        </View>
-      </Animated.View>
+        {/* Main Content Card */}
+        {renderContent()}
+      </View>
     </SafeAreaView>
   );
 }
@@ -416,175 +261,76 @@ export default function JourneyTrackerPage() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0f172a',
   },
   container: {
     flex: 1,
     padding: 16,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  mapPlaceholder: {
+    height: 200,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 20,
   },
-  statsCard: {
-    width: '48%',
-    marginBottom: 12,
+  mapText: {
+    marginTop: 8,
+    fontSize: 14,
+  },
+  card: {
     borderRadius: 16,
-    overflow: 'hidden',
+    paddingVertical: 8,
   },
-  statsCardBlur: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.2)',
-    overflow: 'hidden',
-  },
-  statsCardGradient: {
-    padding: 16,
-    alignItems: 'center',
-    minHeight: 120,
-    justifyContent: 'center',
-  },
-  iconContainer: {
-    marginBottom: 8,
-  },
-  iconGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  statsTitle: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginBottom: 4,
-    letterSpacing: 0.5,
-  },
-  statsValueContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  statsValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  statsUnit: {
-    fontSize: 12,
-    color: '#64748b',
-    marginLeft: 4,
-  },
-  mapContainer: {
-    flex: 1,
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: 20,
-    minHeight: 200,
-  },
-  mapBlur: {
-    flex: 1,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    overflow: 'hidden',
-  },
-  mapGradient: {
-    flex: 1,
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gridPattern: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.1)',
-  },
-  scanLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 3,
-    pointerEvents: 'none',
-  },
-  scanLineGradient: {
-    flex: 1,
-  },
-  mapIconContainer: {
-    marginBottom: 16,
-  },
-  mapIconGradient: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#06b6d4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-  },
-  mapPlaceholderTitle: {
+  cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#06b6d4',
-    marginBottom: 8,
-    letterSpacing: 1,
   },
-  mapPlaceholderSubtitle: {
-    fontSize: 12,
-    color: '#64748b',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    lineHeight: 18,
-  },
-  locationDot: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10b981',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionButtonsContainer: {
+  statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    justifyContent: 'space-around',
+    marginVertical: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 12,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  textInput: {
+    backgroundColor: 'transparent',
+  },
+  fetchButton: {
+    marginTop: 12,
+  },
+  pickerWrapper: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  pickerInput: {
+    fontSize: 16,
+    paddingVertical: 12,
+    paddingRight: 30,
+    color: 'white',
+  },
+  pickerIcon: {
+    top: 15,
+    right: 15,
+  },
+  pickerPlaceholder: {
+    color: '#9ca3af',
   },
   actionButton: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  actionButtonBlur: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.3)',
-    overflow: 'hidden',
-  },
-  actionButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    marginTop: 12,
   },
 });

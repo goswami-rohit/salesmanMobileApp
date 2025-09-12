@@ -3,8 +3,26 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { salesOrders, insertSalesOrderSchema } from '../../db/schema';
+import { salesOrders } from '../../db/schema';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+
+// Manual Zod schema EXACTLY matching the table schema - ACCEPTS NUMBERS OR STRINGS
+const salesOrderSchema = z.object({
+  salesmanId: z.number().int().positive().optional().nullable(),
+  dealerId: z.string().max(255).optional().nullable().or(z.literal("")),
+  quantity: z.union([z.string(), z.number()]).transform(val => String(val)),
+  unit: z.string().max(50).min(1, "Unit is required"),
+  orderTotal: z.union([z.string(), z.number()]).transform(val => String(val)),
+  advancePayment: z.union([z.string(), z.number()]).transform(val => String(val)),
+  pendingPayment: z.union([z.string(), z.number()]).transform(val => String(val)),
+  estimatedDelivery: z.string().or(z.date()),
+  remarks: z.string().max(500).optional().nullable().or(z.literal("")),
+}).transform((data) => ({
+  ...data,
+  dealerId: data.dealerId === "" ? null : data.dealerId,
+  remarks: data.remarks === "" ? null : data.remarks,
+}));
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -18,25 +36,46 @@ function createAutoCRUD(app: Express, config: {
   // CREATE NEW RECORD
   app.post(`/api/${endpoint}`, async (req: Request, res: Response) => {
     try {
-      const validatedData = schema.parse({
-        ...req.body,
-        ...autoFields
-      });
+      // Execute autoFields functions
+      const executedAutoFields: any = {};
+      for (const [key, fn] of Object.entries(autoFields)) {
+        executedAutoFields[key] = fn();
+      }
 
-      const [newRecord] = await db.insert(table).values(validatedData).returning();
+      // Validate the payload
+      const parsed = schema.parse(req.body);
+
+      // Generate ID manually (fix for the database default issue)
+      const generatedId = randomUUID();
+
+      // Prepare data for insertion
+      const insertData = {
+        id: generatedId,
+        ...parsed,
+        estimatedDelivery: new Date(parsed.estimatedDelivery),
+        ...executedAutoFields
+      };
+
+      const [newRecord] = await db.insert(table).values(insertData).returning();
 
       res.status(201).json({
         success: true,
         message: `${tableName} created successfully`,
         data: newRecord
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Create ${tableName} error:`, error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           success: false,
           error: 'Validation failed',
-          details: error.errors
+          details: error.errors ? error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+            code: err.code,
+            received: err.received,
+            expected: err.expected
+          })) : []
         });
       }
       res.status(500).json({
@@ -52,11 +91,11 @@ export default function setupSalesOrdersPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'sales-orders',
     table: salesOrders,
-    schema: insertSalesOrderSchema,
+    schema: salesOrderSchema,
     tableName: 'Sales Order',
     autoFields: {
-      createdAt: () => new Date().toISOString(),
-      updatedAt: () => new Date().toISOString()
+      createdAt: () => new Date(),
+      updatedAt: () => new Date()
     }
   });
   

@@ -28,8 +28,17 @@ export interface UserShape {
   role?: string;
 }
 
+export interface PJP {
+  id: string;
+  dealerName: string;
+  dealerAddress: string;
+  status: string;
+  planDate: string;
+}
+
 export interface AppState {
   user: UserShape | null
+  isAuthenticated: boolean; // for login
   currentPage: "home" | "ai" | "journey" | "profile"
   attendanceStatus: "in" | "out"
   isLoading: boolean
@@ -70,6 +79,7 @@ export interface AppState {
   showDetailModal: boolean
 
   setUser: (u: UserShape | null) => void
+  setIsAuthenticated: (b: boolean) => void // login setter
   setCurrentPage: (p: AppState["currentPage"]) => void
   setAttendanceStatus: (s: AppState["attendanceStatus"]) => void
   setLoading: (b: boolean) => void
@@ -84,6 +94,7 @@ export interface AppState {
 // Define the initial state separately so it can be reused by the reset function for LOGOUT
 const initialState = {
   user: null,
+  isAuthenticated: false,
   currentPage: "home" as AppState["currentPage"],
   attendanceStatus: "out" as AppState["attendanceStatus"],
   isLoading: false,
@@ -122,6 +133,7 @@ export const useAppStore = create<AppState>((set) => ({
   ...initialState,
 
   setUser: (user) => set({ user }),
+  setIsAuthenticated: (isAuthenticated) => set({ isAuthenticated }), // login state manager
   setCurrentPage: (currentPage) => set({ currentPage }),
   setAttendanceStatus: (attendanceStatus) => set({ attendanceStatus }),
   setLoading: (isLoading) => set({ isLoading }),
@@ -187,7 +199,7 @@ export const StatTile = ({ iconName, value, label, tint }: { iconName: string; v
 // 1. Types for the screens within the Bottom Tab Navigator
 export type MainTabsParamList = {
   Home: undefined;
-  Journey: undefined;
+  Journey: { selectedPJP: PJP } | undefined;
   AIChat: undefined;
   Profile: undefined;
 };
@@ -200,9 +212,12 @@ export type DrawerStackParamList = {
   CompetitionReportForm: undefined;
   DVRForm: undefined;
   LeaveApplicationForm: undefined;
-  AddPJPForm: undefined;
+  AddPJPForm: { date?: string; } | undefined;
+  PJPListPage: { date?: string } | undefined;
   SalesOrderForm: undefined;
   TVRForm: undefined;
+  DailyTasksForm: undefined;
+  AddSiteForm: undefined;
   // These forms receive params, but they are opened in modals, not via direct navigation,
   // so we don't need to define params here. They are handled by the component's own props.
   AttendanceInForm: undefined;

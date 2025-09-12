@@ -1,8 +1,8 @@
-// src/pages/AIChatInterface.tsx 
+// src/pages/AIChatInterface.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, FlatList, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, FlatList, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, TextInput, Button, Card, ActivityIndicator, Avatar, IconButton } from 'react-native-paper';
+import { Text, TextInput, Button, Card, ActivityIndicator, Avatar, IconButton, useTheme } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
@@ -23,6 +23,7 @@ interface Message {
 
 // --- Main Component ---
 export default function AIChatInterface() {
+  const theme = useTheme();
   const { user, dealers, setData } = useAppStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -32,7 +33,6 @@ export default function AIChatInterface() {
 
   const flatListRef = useRef<FlatList>(null);
 
-  // FIX: Created a local fetchDealers function
   const fetchDealers = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -134,41 +134,43 @@ export default function AIChatInterface() {
   // --- UI Components ---
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.sender === 'user';
+    const messageContainerStyle = isUser ? styles.userMessageContainer : styles.aiMessageContainer;
+    const bubbleStyle = isUser ? styles.userBubble : styles.aiBubble;
+    const textStyle = isUser ? styles.userText : styles.aiText;
+
     return (
-      <View className={`flex-row items-end my-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
-        {!isUser && <Avatar.Icon size={32} icon="robot-outline" className="mr-2 bg-slate-700" />}
-        <View className={`max-w-[80%] p-3 rounded-2xl ${isUser ? 'bg-blue-600 rounded-br-none' : 'bg-slate-700 rounded-bl-none'}`}>
-          <Text className={isUser ? 'text-white' : 'text-slate-200'}>{item.content}</Text>
+      <View style={[styles.messageRow, messageContainerStyle]}>
+        {!isUser && <Avatar.Icon size={32} icon="robot-outline" style={styles.avatar} />}
+        <View style={bubbleStyle}>
+          <Text style={textStyle}>{item.content}</Text>
         </View>
-        {isUser && <Avatar.Icon size={32} icon="account" className="ml-2 bg-slate-700" />}
+        {isUser && <Avatar.Icon size={32} icon="account" style={styles.avatar} />}
       </View>
     );
   };
 
-  // NOTE: Form rendering logic would be here (renderDVRForm, etc.)
-  // For simplicity, we'll show a placeholder
   const renderCurrentFlow = () => {
     if (!currentFlow) return null;
     return (
-      <Card className="m-4 bg-slate-800">
+      <Card style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={2}>
         <Card.Title
           title={`Creating ${currentFlow.toUpperCase()} Report`}
-          titleStyle={{ color: 'white' }}
+          titleStyle={{ color: theme.colors.onSurface }}
         />
         <Card.Content>
-          <Text className="text-slate-300">Form UI for {currentFlow} would be here.</Text>
-          <Button onPress={() => setCurrentFlow(null)} className="mt-4">Cancel</Button>
+          <Text style={{ color: theme.colors.onSurfaceVariant }}>Form UI for {currentFlow} would be here.</Text>
+          <Button onPress={() => setCurrentFlow(null)} style={styles.formButton}>Cancel</Button>
         </Card.Content>
       </Card>
     );
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-900" edges={['right', 'bottom', 'left']}>
-      <AppHeader title="AI Assistant" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['right', 'bottom', 'left']}>
+      <AppHeader title="AI Chat" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+        style={styles.keyboardContainer}
         keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
       >
         <FlatList
@@ -176,21 +178,21 @@ export default function AIChatInterface() {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8 }}
+          contentContainerStyle={styles.flatListContent}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
           ListHeaderComponent={renderCurrentFlow}
-          ListFooterComponent={isLoading ? <ActivityIndicator className="my-4" /> : null}
+          ListFooterComponent={isLoading ? <ActivityIndicator style={styles.loadingIndicator} /> : null}
         />
 
-        <View className="p-4 border-t border-slate-700 bg-slate-800">
+        <View style={[styles.inputBar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
           {/* Quick Actions would be here if needed */}
-          <View className="flex-row items-center">
+          <View style={styles.inputRow}>
             <TextInput
               value={input}
               onChangeText={setInput}
               placeholder="Ask me anything..."
-              className="flex-1 bg-slate-700"
+              style={styles.textInput}
               disabled={isLoading || !!currentFlow}
               right={<TextInput.Icon icon="microphone" />}
             />
@@ -200,7 +202,7 @@ export default function AIChatInterface() {
               size={24}
               onPress={handleSend}
               disabled={!input.trim() || isLoading || !!currentFlow}
-              className="ml-2"
+              style={styles.sendButton}
             />
           </View>
         </View>
@@ -208,3 +210,76 @@ export default function AIChatInterface() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  keyboardContainer: {
+    flex: 1,
+  },
+  flatListContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginVertical: 4,
+  },
+  userMessageContainer: {
+    justifyContent: 'flex-end',
+  },
+  aiMessageContainer: {
+    justifyContent: 'flex-start',
+  },
+  userBubble: {
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 20,
+    borderBottomRightRadius: 4,
+    backgroundColor: '#1d4ed8', // blue-700
+  },
+  aiBubble: {
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 20,
+    borderBottomLeftRadius: 4,
+    backgroundColor: '#374151', // gray-700
+  },
+  userText: {
+    color: 'white',
+  },
+  aiText: {
+    color: '#e5e7eb', // gray-200
+  },
+  avatar: {
+    backgroundColor: '#374151',
+    marginHorizontal: 8,
+  },
+  loadingIndicator: {
+    marginVertical: 16,
+  },
+  inputBar: {
+    padding: 16,
+    borderTopWidth: 1,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  textInput: {
+    flex: 1,
+    backgroundColor: '#4b5563',
+  },
+  sendButton: {
+    marginLeft: 8,
+  },
+  card: {
+    margin: 16,
+    borderRadius: 16,
+  },
+  formButton: {
+    marginTop: 16,
+  },
+});

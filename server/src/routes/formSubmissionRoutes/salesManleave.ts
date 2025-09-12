@@ -3,8 +3,23 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { salesmanLeaveApplications, insertSalesmanLeaveApplicationSchema } from '../../db/schema';
+import { salesmanLeaveApplications } from '../../db/schema';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+
+// Manual Zod schema EXACTLY matching the table schema
+const salesmanLeaveApplicationSchema = z.object({
+  userId: z.number().int().positive(),
+  leaveType: z.string().max(100),
+  startDate: z.string().or(z.date()),
+  endDate: z.string().or(z.date()),
+  reason: z.string().max(500),
+  status: z.string().max(50),
+  adminRemarks: z.string().max(500).optional().nullable().or(z.literal("")),
+}).transform((data) => ({
+  ...data,
+  adminRemarks: data.adminRemarks === "" ? null : data.adminRemarks,
+}));
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -15,28 +30,43 @@ function createAutoCRUD(app: Express, config: {
 }) {
   const { endpoint, table, schema, tableName, autoFields = {} } = config;
 
-  // CREATE NEW RECORD
   app.post(`/api/${endpoint}`, async (req: Request, res: Response) => {
     try {
-      const validatedData = schema.parse({
-        ...req.body,
-        ...autoFields
-      });
+      const executedAutoFields: any = {};
+      for (const [key, fn] of Object.entries(autoFields)) {
+        executedAutoFields[key] = fn();
+      }
 
-      const [newRecord] = await db.insert(table).values(validatedData).returning();
+      const parsed = schema.parse(req.body);
+      const generatedId = randomUUID();
+
+      const insertData = {
+        id: generatedId,
+        ...parsed,
+        startDate: new Date(parsed.startDate),
+        endDate: new Date(parsed.endDate),
+        ...executedAutoFields
+      };
+
+      const [newRecord] = await db.insert(table).values(insertData).returning();
 
       res.status(201).json({
         success: true,
         message: `${tableName} created successfully`,
         data: newRecord
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Create ${tableName} error:`, error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           success: false,
           error: 'Validation failed',
-          details: error.errors
+          details: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+            code: err.code,
+            received: err.received
+          }))
         });
       }
       res.status(500).json({
@@ -52,11 +82,11 @@ export default function setupSalesmanLeaveApplicationsPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'leave-applications',
     table: salesmanLeaveApplications,
-    schema: insertSalesmanLeaveApplicationSchema,
+    schema: salesmanLeaveApplicationSchema,
     tableName: 'Salesman Leave Application',
     autoFields: {
-      createdAt: () => new Date().toISOString(),
-      updatedAt: () => new Date().toISOString()
+      createdAt: () => new Date(),
+      updatedAt: () => new Date()
     }
   });
   
