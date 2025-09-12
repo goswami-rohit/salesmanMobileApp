@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider as PaperProvider } from "react-native-paper";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import AppDrawer from "./components/SideDrawer";
@@ -17,19 +18,41 @@ import { AppStackParamList } from './components/ReusableConstants';
 // Create the navigator with the defined types
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
+// Enhanced Loading Screen Component
+const LoadingScreen = () => (
+  <View style={styles.loadingContainer}>
+    <LinearGradient
+      colors={[
+        '#0f172a',
+        '#1e293b',
+        '#334155',
+      ]}
+      style={styles.loadingGradient}
+    >
+      <View style={styles.loadingContent}>
+        <ActivityIndicator 
+          size="large" 
+          color="#06b6d4"
+          style={styles.spinner}
+        />
+        {/* You could add your app logo here */}
+      </View>
+    </LinearGradient>
+  </View>
+);
+
 export default function App() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // This auth-checking logic is robust and remains unchanged.
+  // Enhanced auth-checking logic with better error handling
   useEffect(() => {
     let mounted = true;
+    
     async function checkAuth() {
       try {
         const stored = await AsyncStorage.getItem("isAuthenticated");
         if (stored === "true") {
-          // For simplicity in this context, we trust the local storage.
-          // Your more detailed server check is great for production.
           if (mounted) setIsAuthenticated(true);
         } else if (mounted) {
           setIsAuthenticated(false);
@@ -38,7 +61,10 @@ export default function App() {
         console.error("Auth check failed", err);
         if (mounted) setIsAuthenticated(false);
       } finally {
-        if (mounted) setIsCheckingAuth(false);
+        if (mounted) {
+          // Small delay to prevent flash
+          setTimeout(() => setIsCheckingAuth(false), 500);
+        }
       }
     }
 
@@ -48,13 +74,12 @@ export default function App() {
     };
   }, []);
 
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+  };
+
   if (isCheckingAuth) {
-    // Splash/loader screen while checking auth status
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -64,16 +89,12 @@ export default function App() {
           <NavigationContainer>
             <Stack.Navigator screenOptions={{ headerShown: false }}>
               {isAuthenticated ? (
-                // If authenticated, show the main app drawer
                 <Stack.Screen name="AppDrawer" component={AppDrawer} />
               ) : (
-                // If not authenticated, show the login page.
-                // Pass the login callback via initialParams. This is the
-                // standard and type-safe way to handle this.
                 <Stack.Screen
                   name="Login"
                   component={LoginPage}
-                  initialParams={{ onLoginSuccess: () => setIsAuthenticated(true) }}
+                  initialParams={{ onLoginSuccess: handleLoginSuccess }}
                 />
               )}
             </Stack.Navigator>
@@ -85,5 +106,18 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingContainer: {
+    flex: 1,
+  },
+  loadingGradient: {
+    flex: 1,
+  },
+  loadingContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  spinner: {
+    transform: [{ scale: 1.5 }],
+  },
 });

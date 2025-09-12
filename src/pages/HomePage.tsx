@@ -1,723 +1,1154 @@
-// src/pages/HomePage.tsx
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
+// src/pages/HomePage.tsx - Single Rotating Flip Clock Design
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  View, 
+  ScrollView, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Animated, 
   Dimensions,
   StatusBar,
-  Image,
-  RefreshControl,
-  Alert
+  Platform,
+  Vibration,
+  Text
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppStore, BASE_URL } from '../components/ReusableConstants';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { BlurView } from 'expo-blur';
 
 const { width, height } = Dimensions.get('window');
 
-// Types
-interface PJP {
-  id: string;
-  userId: number;
-  createdById: number;
-  planDate: string;
-  areaToBeVisited: string;
-  description?: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  tasks?: Task[];
-  timeSlot: string;
-  nextLocation?: string;
-  transitTime?: string;
-  distance?: string;
+// Demo PJP Data
+const DEMO_PJPS = [
+  {
+    id: 1,
+    dealerName: "Tech Solutions Hub",
+    dealerAddress: "123 Business District, Tech City",
+    status: "active",
+    latitude: 28.7041,
+    longitude: 77.1025,
+    targetSales: 250000,
+    progressPercentage: 65,
+    priority: "high"
+  },
+  {
+    id: 2,
+    dealerName: "Innovation Center",
+    dealerAddress: "456 Innovation Park, Metro City", 
+    status: "planned",
+    latitude: 28.6139,
+    longitude: 77.2090,
+    targetSales: 180000,
+    progressPercentage: 30,
+    priority: "medium"
+  },
+  {
+    id: 3,
+    dealerName: "Future Electronics",
+    dealerAddress: "789 Digital Avenue, Cyber City",
+    status: "active",
+    latitude: 28.5355,
+    longitude: 77.3910,
+    targetSales: 320000,
+    progressPercentage: 78,
+    priority: "high"
+  }
+];
+
+interface DailyTasksBellComponentProps {
+  pendingCount: number;
+  onBellPress: () => void;
 }
 
-interface Task {
-  id: string;
-  description: string;
-  status: 'Completed' | 'Pending';
-}
+const DailyTasksBellComponent: React.FC<DailyTasksBellComponentProps> = ({ pendingCount, onBellPress }) => {
+  const [pulseAnim] = useState(new Animated.Value(1));
 
-interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  companyName: string;
-}
-
-// Mock Store Hook
-const useAppStore = () => {
-  const [attendanceStatus, setAttendanceStatus] = useState<'in' | 'out'>('out');
-  
-  const mockUser: User = {
-    id: '1',
-    firstName: 'Agent',
-    lastName: 'rez haa',
-    email: 'agent@cement.com',
-    companyName: 'Cement Company'
-  };
-
-  const mockPJPs: PJP[] = [
-    {
-      id: '1',
-      userId: 1,
-      createdById: 1,
-      planDate: new Date().toISOString(),
-      areaToBeVisited: 'Hari Hardware',
-      description: 'Hardware store visit for competitor analysis and product pricing',
-      status: 'in_progress',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      tasks: [
-        { id: '1', description: 'Competitor report', status: 'Completed' },
-        { id: '2', description: 'Photo required', status: 'Pending' }
-      ],
-      timeSlot: '9:14 AM',
-      nextLocation: 'J.K. Electronics',
-      transitTime: '9:28-9:42',
-      distance: '7km'
-    },
-    {
-      id: '2',
-      userId: 1,
-      createdById: 1,
-      planDate: new Date().toISOString(),
-      areaToBeVisited: 'J.K. Electronics',
-      description: 'Electronics store survey and market research',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      tasks: [
-        { id: '3', description: 'Journey Plan', status: 'Pending' },
-        { id: '4', description: 'Daily Tasks', status: 'Pending' }
-      ],
-      timeSlot: '9:52 AM',
-      distance: '7km'
-    },
-    {
-      id: '3',
-      userId: 1,
-      createdById: 1,
-      planDate: new Date().toISOString(),
-      areaToBeVisited: 'Metro Market',
-      description: 'Market analysis and customer behavior study',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      tasks: [
-        { id: '5', description: 'Customer survey', status: 'Pending' },
-        { id: '6', description: 'Price comparison', status: 'Pending' }
-      ],
-      timeSlot: '11:20 AM',
-      distance: '4km'
+  useEffect(() => {
+    if (pendingCount > 0) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
     }
-  ];
-
-  return {
-    user: mockUser,
-    attendanceStatus,
-    pjps: mockPJPs,
-    setAttendanceStatus
-  };
-};
-
-// Journey Header Component
-const JourneyHeader: React.FC<{
-  totalTime: string;
-  distance: string;
-  stops: string;
-  forms: string;
-  offlineCount: string;
-}> = ({ totalTime, distance, stops, forms, offlineCount }) => (
-  <LinearGradient
-    colors={['#2D3748', '#4A5568']}
-    style={styles.headerGradient}
-  >
-    <StatusBar barStyle="light-content" backgroundColor="#2D3748" />
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={styles.journeyTitle}>Journey</Text>
-          <Text style={styles.offlineText}>
-            Offline: {offlineCount} items pending sync
-          </Text>
-        </View>
-        <Text style={styles.journeyStats}>
-          {totalTime} • {distance} • {stops} stops • {forms} forms
-        </Text>
-      </View>
-    </SafeAreaView>
-  </LinearGradient>
-);
-
-// Check-in Card Component
-const CheckInCard: React.FC<{
-  location: string;
-  onCheckIn: () => void;
-}> = ({ location, onCheckIn }) => (
-  <View style={styles.checkInCard}>
-    <View style={styles.checkInContent}>
-      <View style={styles.checkInIcon}>
-        <Icon name="map-marker" size={24} color="#64748b" />
-      </View>
-      <View style={styles.checkInText}>
-        <Text style={styles.checkInTitle}>You're near {location}. Check in?</Text>
-      </View>
-      <TouchableOpacity style={styles.checkInButton} onPress={onCheckIn}>
-        <Text style={styles.checkInButtonText}>Check In</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
-
-// Task Item Component
-const TaskItem: React.FC<{
-  task: string;
-  isCompleted: boolean;
-}> = ({ task, isCompleted }) => (
-  <View style={styles.taskItem}>
-    <Text style={styles.taskLabel}>Tasks</Text>
-    <View style={styles.taskRow}>
-      <Text style={[styles.taskText, isCompleted && styles.completedTask]}>
-        {task}
-      </Text>
-      {isCompleted && (
-        <Icon name="check" size={16} color="#10b981" style={styles.taskCheck} />
-      )}
-    </View>
-  </View>
-);
-
-// Photo Section Component
-const PhotoSection: React.FC<{
-  photos?: string[];
-  onAddNote: () => void;
-}> = ({ photos, onAddNote }) => (
-  <View style={styles.photoSection}>
-    <Text style={styles.photoLabel}>Photo required</Text>
-    <View style={styles.photosContainer}>
-      {photos?.map((photo, index) => (
-        <Image key={index} source={{ uri: photo }} style={styles.photoThumbnail} />
-      ))}
-    </View>
-    <TouchableOpacity onPress={onAddNote}>
-      <Text style={styles.addNoteButton}>Add Note</Text>
-    </TouchableOpacity>
-  </View>
-);
-
-// Journey Card Component
-const JourneyCard: React.FC<{
-  pjp: PJP;
-  isLast: boolean;
-}> = ({ pjp, isLast }) => {
-  const handleCheckIn = () => {
-    Alert.alert('Check In', `Checking in at ${pjp.areaToBeVisited}`);
-  };
-
-  const handleAddNote = () => {
-    Alert.alert('Add Note', 'Add note functionality');
-  };
+  }, [pendingCount]);
 
   return (
-    <View style={styles.journeyCardContainer}>
-      {/* Timeline dot and line */}
-      <View style={styles.timelineContainer}>
-        <View style={[
-          styles.timelineDot, 
-          pjp.status === 'in_progress' && styles.activeTimelineDot,
-          pjp.status === 'completed' && styles.completedTimelineDot
-        ]} />
-        {!isLast && <View style={styles.timelineLine} />}
-      </View>
-
-      {/* Card Content */}
-      <View style={styles.cardContent}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.timeSlot}>{pjp.timeSlot}</Text>
-          {pjp.distance && (
-            <Text style={styles.distance}>{pjp.distance}</Text>
-          )}
+    <TouchableOpacity onPress={onBellPress} style={styles.bellContainer}>
+      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+        <LinearGradient
+          colors={pendingCount > 0 ? ['#f59e0b', '#d97706'] : ['#374151', '#4b5563']}
+          style={styles.bellGradient}
+        >
+          <MaterialCommunityIcons 
+            name={pendingCount > 0 ? "bell-ring" : "bell-outline"} 
+            size={22} 
+            color="white" 
+          />
+        </LinearGradient>
+      </Animated.View>
+      {pendingCount > 0 && (
+        <View style={styles.bellBadge}>
+          <Text style={styles.bellBadgeText}>
+            {pendingCount > 99 ? '99+' : pendingCount}
+          </Text>
         </View>
-
-        <Text style={styles.locationTitle}>{pjp.areaToBeVisited}</Text>
-
-        {/* Tasks */}
-        {pjp.tasks?.map((task) => (
-          <TaskItem 
-            key={task.id} 
-            task={task.description} 
-            isCompleted={task.status === 'Completed'} 
-          />
-        ))}
-
-        {/* Photo Section for first card */}
-        {pjp.id === '1' && (
-          <PhotoSection 
-            photos={['https://via.placeholder.com/80x60/8B5CF6/FFFFFF?text=Photo1', 'https://via.placeholder.com/80x60/8B5CF6/FFFFFF?text=Photo2']}
-            onAddNote={handleAddNote}
-          />
-        )}
-
-        {/* Transit info */}
-        {pjp.transitTime && (
-          <View style={styles.transitInfo}>
-            <Text style={styles.transitText}>{pjp.transitTime} Transit</Text>
-            <View style={styles.transitLine}>
-              <Icon name="map" size={20} color="#3b82f6" />
-            </View>
-          </View>
-        )}
-      </View>
-    </View>
+      )}
+    </TouchableOpacity>
   );
 };
 
-// Attendance Section Component
-const AttendanceSection: React.FC<{
-  attendanceStatus: 'in' | 'out';
-  onPunchIn: () => void;
-  onPunchOut: () => void;
-}> = ({ attendanceStatus, onPunchIn, onPunchOut }) => (
-  <View style={styles.attendanceSection}>
-    <View style={styles.attendanceContent}>
-      <View style={styles.attendanceStatus}>
-        <View style={[
-          styles.attendanceIndicator,
-          attendanceStatus === 'in' ? styles.onDuty : styles.offDuty
-        ]} />
-        <Text style={styles.attendanceText}>
-          {attendanceStatus === 'in' ? 'ON DUTY' : 'OFF DUTY'}
-        </Text>
-      </View>
-      
-      <View style={styles.punchButtons}>
-        <TouchableOpacity 
-          style={[
-            styles.punchButton,
-            attendanceStatus === 'out' ? styles.punchInActive : styles.punchButtonDisabled
-          ]}
-          onPress={onPunchIn}
-          disabled={attendanceStatus === 'in'}
-        >
-          <Text style={styles.punchButtonText}>PUNCH IN</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.punchButton,
-            attendanceStatus === 'in' ? styles.punchOutActive : styles.punchButtonDisabled
-          ]}
-          onPress={onPunchOut}
-          disabled={attendanceStatus === 'out'}
-        >
-          <Text style={styles.punchButtonText}>PUNCH OUT</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </View>
-);
+// SINGLE ROTATING FLIP CLOCK COMPONENT
+const SingleFlipClock = ({ pjps, onCardPress }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [flipAnim] = useState(new Animated.Value(0));
+  const [cardRotation] = useState(new Animated.Value(0));
+  const [isFlipping, setIsFlipping] = useState(false);
 
-// Main HomePage Component
-export default function HomePage(): React.JSX.Element {
-  const { user, attendanceStatus, pjps, setAttendanceStatus } = useAppStore();
-  const [refreshing, setRefreshing] = useState(false);
+  const currentPjp = pjps[currentIndex] || pjps[0];
 
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
+  useEffect(() => {
+    // Auto-rotate every 4 seconds
+    const interval = setInterval(() => {
+      if (!isFlipping) {
+        flipToNext();
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [currentIndex, isFlipping]);
+
+  const flipToNext = () => {
+    setIsFlipping(true);
+    
+    // Flip animation
+    Animated.sequence([
+      Animated.timing(cardRotation, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardRotation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setIsFlipping(false);
+    });
+
+    // Change card in the middle of flip
     setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
-  }, []);
-
-  const handlePunchIn = () => {
-    setAttendanceStatus('in');
-    Alert.alert('Punch In', 'Successfully punched in!');
+      setCurrentIndex((prev) => (prev + 1) % pjps.length);
+    }, 300);
   };
 
-  const handlePunchOut = () => {
-    setAttendanceStatus('out');
-    Alert.alert('Punch Out', 'Successfully punched out!');
+  const flipToPrevious = () => {
+    setIsFlipping(true);
+    
+    Animated.sequence([
+      Animated.timing(cardRotation, {
+        toValue: -1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardRotation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setIsFlipping(false);
+    });
+
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev - 1 + pjps.length) % pjps.length);
+    }, 300);
   };
 
-  const handleCheckIn = (location: string) => {
-    Alert.alert('Check In', `Checking in at ${location}`);
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'active': return '#10b981';
+      case 'completed': return '#3b82f6';
+      case 'planned': return '#f59e0b';
+      default: return '#6b7280';
+    }
+  };
+
+  const handleCardPress = () => {
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate();
+    } else {
+      Vibration.vibrate(50);
+    }
+    onCardPress?.(currentPjp);
   };
 
   return (
-    <View style={styles.container}>
-      {/* Journey Header */}
-      <JourneyHeader 
-        totalTime="9h 20m"
-        distance="18.3 km"
-        stops="11"
-        forms="6"
-        offlineCount="2"
-      />
-
-      <ScrollView 
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+    <View style={styles.flipClockContainer}>
+      {/* Chrome Frame */}
+      <LinearGradient
+        colors={['#f8fafc', '#e2e8f0', '#cbd5e1', '#94a3b8']}
+        style={styles.chromeFrame}
       >
-        {/* Check-in Card */}
-        <CheckInCard 
-          location="Hari Hardware"
-          onCheckIn={() => handleCheckIn('Hari Hardware')}
-        />
+        {/* Chrome Stand */}
+        <View style={styles.chromeStand} />
+        
+        {/* Rotating Card Container */}
+        <TouchableOpacity activeOpacity={0.9} onPress={handleCardPress}>
+          <Animated.View 
+            style={[
+              styles.flipCardContainer,
+              {
+                transform: [
+                  {
+                    rotateX: cardRotation.interpolate({
+                      inputRange: [-1, 0, 1],
+                      outputRange: ['-90deg', '0deg', '90deg'],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {/* White Flip Card */}
+            <View style={styles.flipCard}>
+              {/* Mission Number Display */}
+              <View style={styles.numberDisplay}>
+                <Text style={styles.missionNumber}>
+                  {String(currentPjp.id).padStart(2, '0')}
+                </Text>
+                <View style={styles.flipHinge} />
+              </View>
 
-        {/* Attendance Section */}
-        <AttendanceSection 
-          attendanceStatus={attendanceStatus}
-          onPunchIn={handlePunchIn}
-          onPunchOut={handlePunchOut}
-        />
+              {/* Dealer Name */}
+              <Text style={styles.dealerName}>{currentPjp.dealerName}</Text>
 
-        {/* Journey Cards */}
-        <View style={styles.journeyContainer}>
-          {pjps.map((pjp, index) => (
-            <JourneyCard 
-              key={pjp.id} 
-              pjp={pjp} 
-              isLast={index === pjps.length - 1}
+              {/* Progress Display */}
+              <View style={styles.progressDisplay}>
+                <Text style={styles.progressNumber}>
+                  {String(currentPjp.progressPercentage).padStart(2, '0')}
+                </Text>
+                <Text style={styles.percentSign}>%</Text>
+              </View>
+
+              {/* Status Indicator */}
+              <View style={styles.statusContainer}>
+                <View style={[
+                  styles.statusDot, 
+                  { backgroundColor: getStatusColor(currentPjp.status) }
+                ]} />
+                <Text style={[
+                  styles.statusText, 
+                  { color: getStatusColor(currentPjp.status) }
+                ]}>
+                  {currentPjp.status.toUpperCase()}
+                </Text>
+              </View>
+
+              {/* Target Amount */}
+              <View style={styles.targetContainer}>
+                <Text style={styles.targetLabel}>TARGET</Text>
+                <Text style={styles.targetAmount}>
+                  ₹{(currentPjp.targetSales / 1000).toFixed(0)}K
+                </Text>
+              </View>
+
+              {/* Address */}
+              <View style={styles.addressContainer}>
+                <MaterialCommunityIcons name="map-marker" size={12} color="#6b7280" />
+                <Text style={styles.addressText} numberOfLines={1}>
+                  {currentPjp.dealerAddress}
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+        </TouchableOpacity>
+
+        {/* Chrome Side Arms */}
+        <View style={styles.chromeArmLeft} />
+        <View style={styles.chromeArmRight} />
+      </LinearGradient>
+
+      {/* Navigation Controls */}
+      <View style={styles.controls}>
+        <TouchableOpacity 
+          style={styles.controlButton} 
+          onPress={flipToPrevious}
+          disabled={isFlipping}
+        >
+          <MaterialCommunityIcons name="chevron-left" size={20} color="#06b6d4" />
+        </TouchableOpacity>
+
+        {/* Pagination Dots */}
+        <View style={styles.pagination}>
+          {pjps.map((_, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.paginationDot,
+                {
+                  backgroundColor: index === currentIndex ? '#06b6d4' : '#64748b',
+                  transform: [{ scale: index === currentIndex ? 1.2 : 1 }],
+                }
+              ]}
+              onPress={() => {
+                setCurrentIndex(index);
+                flipToNext();
+              }}
             />
           ))}
         </View>
 
-        {/* Add Journey Plan Button */}
-        <TouchableOpacity style={styles.addJourneyButton}>
-          <View style={styles.addButtonContent}>
-            <Icon name="plus" size={24} color="#3b82f6" />
-            <Text style={styles.addButtonText}>Journey Plan / Daily Tasks</Text>
-          </View>
+        <TouchableOpacity 
+          style={styles.controlButton} 
+          onPress={flipToNext}
+          disabled={isFlipping}
+        >
+          <MaterialCommunityIcons name="chevron-right" size={20} color="#06b6d4" />
         </TouchableOpacity>
-      </ScrollView>
-
-      {/* Bottom Tab Placeholder */}
-      <View style={styles.bottomTab}>
-        <View style={styles.tabItem}>
-          <Icon name="view-dashboard" size={24} color="#3b82f6" />
-        </View>
-        <View style={styles.tabItem}>
-          <Icon name="clipboard-text" size={24} color="#64748b" />
-        </View>
-        <View style={styles.tabItem}>
-          <Icon name="map" size={24} color="#64748b" />
-        </View>
-        <View style={styles.tabItem}>
-          <Icon name="menu" size={24} color="#64748b" />
-        </View>
       </View>
     </View>
   );
-}
+};
+
+const HomePage = () => {
+  const { top } = useSafeAreaInsets();
+  const navigation = useNavigation();
+  const {
+    user,
+    attendanceStatus,
+    setAttendanceStatus,
+    dailyTasks,
+    setData,
+    setLoading,
+    isLoading
+  } = useAppStore();
+
+  const [connectionStatus, setConnectionStatus] = useState(true);
+  const [lastSync, setLastSync] = useState(new Date());
+  const [headerAnimation] = useState(new Animated.Value(0));
+  const [cardAnimations] = useState(new Animated.Value(0));
+  const [pjps, setPjps] = useState(DEMO_PJPS);
+
+  useEffect(() => {
+    StatusBar.setBarStyle('light-content');
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor('transparent', true);
+      StatusBar.setTranslucent(true);
+    }
+
+    // Start animations
+    Animated.stagger(300, [
+      Animated.timing(headerAnimation, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardAnimations, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Connection status simulation
+    const interval = setInterval(() => {
+      setConnectionStatus(Math.random() > 0.1);
+      setLastSync(new Date());
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handlePunchIn = useCallback(() => {
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate([0, 100, 50, 100]);
+    } else {
+      Vibration.vibrate([0, 100, 50, 100]);
+    }
+    setAttendanceStatus("in");
+  }, [setAttendanceStatus]);
+
+  const handlePunchOut = useCallback(() => {
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate([0, 100, 50, 100]);
+    } else {
+      Vibration.vibrate([0, 100, 50, 100]);
+    }
+    setAttendanceStatus("out");
+  }, [setAttendanceStatus]);
+
+  const handleCreatePJP = () => {
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate();
+    } else {
+      Vibration.vibrate(30);
+    }
+    navigation.navigate('AddPJPForm');
+  };
+
+  const handleDailyTasksPress = () => {
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate();
+    } else {
+      Vibration.vibrate(30);
+    }
+    navigation.navigate('DailyTasksForm');
+  };
+
+  const handlePJPCardPress = (pjp) => {
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate();
+    } else {
+      Vibration.vibrate(50);
+    }
+    navigation.navigate('Journey', { selectedPJP: pjp });
+  };
+
+  const pendingTasks = dailyTasks?.filter(task => 
+    task.status !== 'Completed' && task.status !== 'completed'
+  ) || [];
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* Enhanced Header */}
+      <Animated.View 
+        style={[
+          styles.headerContainer, 
+          { 
+            paddingTop: top + 10,
+            opacity: headerAnimation,
+            transform: [{
+              translateY: headerAnimation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-50, 0],
+              }),
+            }],
+          }
+        ]}
+      >
+        <LinearGradient
+          colors={['#0f172a', '#1e293b', 'transparent']}
+          style={styles.headerGradient}
+        >
+          <BlurView intensity={20} tint="dark" style={styles.headerBlur}>
+            <View style={styles.headerContent}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity style={styles.logoContainer}>
+                  <LinearGradient
+                    colors={['#06b6d4', '#0891b2']}
+                    style={styles.logoGradient}
+                  >
+                    <MaterialCommunityIcons name="radar" size={28} color="white" />
+                  </LinearGradient>
+                </TouchableOpacity>
+                <View style={styles.headerText}>
+                  <Text style={styles.greetingText}>{getGreeting()}</Text>
+                  <Text style={styles.userName}>
+                    {user?.firstName || 'Agent'} {user?.lastName || ''}
+                  </Text>
+                  <Text style={styles.companyName}>
+                    {user?.company || "Field Operations HQ"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.headerRight}>
+                <DailyTasksBellComponent 
+                  pendingCount={pendingTasks.length} 
+                  onBellPress={handleDailyTasksPress} 
+                />
+                <TouchableOpacity style={styles.avatarContainer}>
+                  <LinearGradient
+                    colors={['#06b6d4', '#0891b2']}
+                    style={styles.avatarGradient}
+                  >
+                    <Text style={styles.avatarText}>
+                      {user?.firstName?.[0] || 'A'}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </BlurView>
+        </LinearGradient>
+      </Animated.View>
+
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Connection Status */}
+        <Animated.View 
+          style={[
+            styles.connectionContainer,
+            {
+              opacity: cardAnimations,
+              transform: [{
+                translateY: cardAnimations.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              }],
+            }
+          ]}
+        >
+          <BlurView intensity={15} tint="dark" style={styles.connectionBlur}>
+            <View style={styles.connectionContent}>
+              <View style={[
+                styles.connectionDot, 
+                connectionStatus ? styles.dotOnline : styles.dotOffline
+              ]} />
+              <Text style={styles.connectionText}>
+                {connectionStatus ? 'MISSION CONTROL ONLINE' : 'OFFLINE MODE'}
+              </Text>
+              <Text style={styles.lastSyncText}>
+                • {lastSync.toLocaleTimeString()}
+              </Text>
+            </View>
+          </BlurView>
+        </Animated.View>
+
+        {/* Enhanced Attendance Panel */}
+        <Animated.View 
+          style={[
+            styles.attendanceContainer,
+            {
+              opacity: cardAnimations,
+              transform: [{
+                scale: cardAnimations.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                }),
+              }],
+            }
+          ]}
+        >
+          <BlurView intensity={25} tint="dark" style={styles.attendanceBlur}>
+            <LinearGradient
+              colors={['rgba(15, 23, 42, 0.9)', 'rgba(30, 41, 59, 0.8)']}
+              style={styles.attendanceGradient}
+            >
+              <View style={styles.attendanceContent}>
+                <View style={styles.dutyStatusSection}>
+                  <Text style={styles.dutyStatusLabel}>DUTY STATUS</Text>
+                  <View style={styles.dutyStatusRow}>
+                    <View style={[
+                      styles.statusIndicator,
+                      attendanceStatus === 'in' ? styles.statusActive : styles.statusStandby
+                    ]} />
+                    <Text style={styles.dutyStatusText}>
+                      {attendanceStatus === 'in' ? 'ON ACTIVE DUTY' : 'STANDBY MODE'}
+                    </Text>
+                  </View>
+                  <Text style={styles.dutyTime}>
+                    {new Date().toLocaleTimeString()}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.attendanceButton,
+                    attendanceStatus === 'in' ? styles.punchOutButton : styles.punchInButton
+                  ]}
+                  onPress={attendanceStatus === 'in' ? handlePunchOut : handlePunchIn}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={attendanceStatus === 'in' 
+                      ? ['#ef4444', '#dc2626'] 
+                      : ['#10b981', '#059669']
+                    }
+                    style={styles.buttonGradient}
+                  >
+                    <MaterialCommunityIcons 
+                      name={attendanceStatus === 'in' ? "logout" : "login"} 
+                      size={20} 
+                      color="white" 
+                    />
+                    <Text style={styles.buttonText}>
+                      {attendanceStatus === 'in' ? 'PUNCH OUT' : 'PUNCH IN'}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </BlurView>
+        </Animated.View>
+
+        {/* PJP Section Header */}
+        <Animated.View 
+          style={[
+            styles.pjpSectionHeader,
+            {
+              opacity: cardAnimations,
+              transform: [{
+                translateY: cardAnimations.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                }),
+              }],
+            }
+          ]}
+        >
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <LinearGradient
+                colors={['#06b6d4', '#0891b2']}
+                style={styles.sectionIconBg}
+              >
+                <MaterialCommunityIcons name="clock-time-four" size={24} color="white" />
+              </LinearGradient>
+              <View>
+                <Text style={styles.sectionTitle}>Mission Clock</Text>
+                <Text style={styles.pjpCount}>
+                  {pjps?.length || 0} {(pjps?.length || 0) === 1 ? 'mission' : 'missions'} rotating
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* SINGLE ROTATING FLIP CLOCK */}
+        <Animated.View 
+          style={[
+            styles.flipClockSection,
+            {
+              opacity: cardAnimations,
+              transform: [{
+                translateY: cardAnimations.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [80, 0],
+                }),
+              }],
+            }
+          ]}
+        >
+          <SingleFlipClock pjps={pjps} onCardPress={handlePJPCardPress} />
+        </Animated.View>
+      </ScrollView>
+
+      {/* Enhanced Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={handleCreatePJP}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={['#06b6d4', '#0891b2']}
+          style={styles.fabGradient}
+        >
+          <MaterialCommunityIcons name="plus" size={28} color="white" />
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#0f172a',
   },
-  safeArea: {
-    paddingHorizontal: 16,
+  headerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
   },
   headerGradient: {
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
-  header: {
-    paddingTop: 8,
+  headerBlur: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
   },
-  headerTop: {
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  journeyTitle: {
-    fontSize: 28,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  logoContainer: {
+    marginRight: 15,
+  },
+  logoGradient: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 10,
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  headerText: {
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#06b6d4',
+    letterSpacing: 0.5,
+  },
+  userName: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
+    marginTop: 2,
   },
-  offlineText: {
-    fontSize: 14,
-    color: '#cbd5e1',
+  companyName: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 1,
   },
-  journeyStats: {
-    fontSize: 16,
-    color: '#e2e8f0',
-    fontWeight: '500',
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  bellContainer: {
+    position: 'relative',
+  },
+  bellGradient: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#ef4444',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  bellBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  avatarContainer: {},
+  avatarGradient: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
   },
   scrollView: {
     flex: 1,
   },
-  checkInCard: {
-    backgroundColor: 'white',
-    margin: 16,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  scrollContent: {
+    paddingTop: 140,
+    paddingHorizontal: 20,
+    paddingBottom: 100,
   },
-  checkInContent: {
+  connectionContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  connectionBlur: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+  },
+  connectionContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  checkInIcon: {
-    width: 48,
-    height: 48,
+  connectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  dotOnline: {
+    backgroundColor: '#10b981',
+  },
+  dotOffline: {
+    backgroundColor: '#ef4444',
+  },
+  connectionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#06b6d4',
+    letterSpacing: 1,
+  },
+  lastSyncText: {
+    fontSize: 10,
+    color: '#94a3b8',
+  },
+  attendanceContainer: {
+    marginBottom: 24,
+  },
+  attendanceBlur: {
     borderRadius: 24,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.2)',
   },
-  checkInText: {
-    flex: 1,
-  },
-  checkInTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  checkInButton: {
-    backgroundColor: '#3b82f6',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  checkInButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  attendanceSection: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  attendanceGradient: {
+    padding: 20,
   },
   attendanceContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  attendanceStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  dutyStatusSection: {
+    flex: 1,
   },
-  attendanceIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  onDuty: {
-    backgroundColor: '#10b981',
-  },
-  offDuty: {
-    backgroundColor: '#f59e0b',
-  },
-  attendanceText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  punchButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  punchButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  punchInActive: {
-    backgroundColor: '#10b981',
-  },
-  punchOutActive: {
-    backgroundColor: '#ef4444',
-  },
-  punchButtonDisabled: {
-    backgroundColor: '#e2e8f0',
-  },
-  punchButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  journeyContainer: {
-    paddingHorizontal: 16,
-  },
-  journeyCardContainer: {
-    flexDirection: 'row',
-    marginBottom: 24,
-  },
-  timelineContainer: {
-    width: 24,
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#cbd5e1',
+  dutyStatusLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#06b6d4',
+    letterSpacing: 1.2,
     marginBottom: 8,
   },
-  activeTimelineDot: {
-    backgroundColor: '#3b82f6',
+  dutyStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
   },
-  completedTimelineDot: {
+  statusIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  statusActive: {
     backgroundColor: '#10b981',
   },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: '#e2e8f0',
+  statusStandby: {
+    backgroundColor: '#f59e0b',
   },
-  cardContent: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+  dutyStatusText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'white',
+  },
+  dutyTime: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  attendanceButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 4,
   },
-  cardHeader: {
+  punchInButton: {},
+  punchOutButton: {},
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
+    letterSpacing: 0.5,
+  },
+  pjpSectionHeader: {
+    marginBottom: 16,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  timeSlot: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
-  distance: {
+  sectionIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: 'white',
+    letterSpacing: 0.5,
+  },
+  pjpCount: {
     fontSize: 14,
-    color: '#64748b',
+    color: '#06b6d4',
+    fontWeight: '600',
+    marginTop: 2,
   },
-  locationTitle: {
+  flipClockSection: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+
+  // SINGLE FLIP CLOCK STYLES
+  flipClockContainer: {
+    alignItems: 'center',
+    position: 'relative',
+  },
+  chromeFrame: {
+    borderRadius: 20,
+    padding: 8,
+    elevation: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 25,
+    position: 'relative',
+  },
+  chromeStand: {
+    position: 'absolute',
+    bottom: -15,
+    left: '40%',
+    right: '40%',
+    height: 20,
+    backgroundColor: '#9ca3af',
+    borderRadius: 10,
+    elevation: 10,
+  },
+  flipCardContainer: {
+    width: width - 80,
+    height: 240,
+  },
+  flipCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    elevation: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    justifyContent: 'space-between',
+  },
+  numberDisplay: {
+    alignItems: 'center',
+    marginBottom: 12,
+    position: 'relative',
+  },
+  missionNumber: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#111827',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-condensed',
+    letterSpacing: -2,
+  },
+  flipHinge: {
+    position: 'absolute',
+    bottom: -8,
+    left: '20%',
+    right: '20%',
+    height: 2,
+    backgroundColor: '#9ca3af',
+    borderRadius: 1,
+  },
+  dealerName: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 12,
+    color: '#374151',
+    textAlign: 'center',
+    marginBottom: 16,
   },
-  taskItem: {
-    marginBottom: 8,
-  },
-  taskLabel: {
-    fontSize: 14,
-    color: '#64748b',
-    marginBottom: 4,
-  },
-  taskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  taskText: {
-    fontSize: 16,
-    color: '#1e293b',
-    flex: 1,
-  },
-  completedTask: {
-    color: '#10b981',
-  },
-  taskCheck: {
-    marginLeft: 8,
-  },
-  photoSection: {
-    marginTop: 12,
-  },
-  photoLabel: {
-    fontSize: 14,
-    color: '#3b82f6',
-    marginBottom: 8,
-  },
-  photosContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  photoThumbnail: {
-    width: 80,
-    height: 60,
-    borderRadius: 8,
-  },
-  addNoteButton: {
-    fontSize: 16,
-    color: '#3b82f6',
-    fontWeight: '600',
-  },
-  transitInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-  },
-  transitText: {
-    fontSize: 16,
-    color: '#64748b',
-    marginRight: 12,
-  },
-  transitLine: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  addJourneyButton: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginBottom: 24,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  addButtonContent: {
+  progressDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
   },
-  addButtonText: {
-    fontSize: 16,
-    color: '#1e293b',
-    marginLeft: 8,
-    fontWeight: '600',
+  progressNumber: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#111827',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-condensed',
+    letterSpacing: -1,
   },
-  bottomTab: {
+  percentSign: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#6b7280',
+    marginLeft: 4,
+  },
+  statusContainer: {
     flexDirection: 'row',
-    backgroundColor: 'white',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingBottom: 32,
-  },
-  tabItem: {
-    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  targetContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  targetLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#6b7280',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  targetAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  addressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  addressText: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginLeft: 4,
+    flex: 1,
+    textAlign: 'center',
+  },
+  chromeArmLeft: {
+    position: 'absolute',
+    left: -12,
+    top: '30%',
+    width: 8,
+    height: '40%',
+    backgroundColor: '#cbd5e1',
+    borderRadius: 4,
+    elevation: 12,
+  },
+  chromeArmRight: {
+    position: 'absolute',
+    right: -12,
+    top: '30%',
+    width: 8,
+    height: '40%',
+    backgroundColor: '#cbd5e1',
+    borderRadius: 4,
+    elevation: 12,
+  },
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    gap: 16,
+  },
+  controlButton: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+  },
+  pagination: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    borderRadius: 28,
+    elevation: 12,
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+  },
+  fabGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
+
+export default HomePage;

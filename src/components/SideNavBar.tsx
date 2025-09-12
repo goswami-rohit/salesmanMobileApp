@@ -1,135 +1,641 @@
-// src/reusableConstants/SideNavBar.tsx
-import React, { useEffect } from "react";
-import { View } from "react-native";
+// src/components/SideNavBar.tsx
+import React, { useEffect, useRef } from 'react';
 import {
-  DrawerContentScrollView,
-  DrawerContentComponentProps,
-} from "@react-navigation/drawer";
-import { Avatar, Text, List, Divider } from "react-native-paper";
-import { useNavigation, CompositeNavigationProp, NavigatorScreenParams } from "@react-navigation/native";
-import { DrawerNavigationProp } from "@react-navigation/drawer";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Easing,
+  Platform,
+  Vibration,
+  Alert,
+} from 'react-native';
+import { DrawerContentScrollView } from '@react-navigation/drawer';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import * as Haptics from 'expo-haptics';
 
-// Import your centralized navigation types and the Zustand store
-import { DrawerStackParamList, MainTabsParamList } from "./ReusableConstants";
-import { useAppStore, fetchUserById } from "./ReusableConstants";
+// Enhanced Animated User Profile Component
+const AnimatedUserProfile: React.FC<{ user: any }> = ({ user }) => {
+  const profileGlow = useRef(new Animated.Value(0.5)).current;
+  const profilePulse = useRef(new Animated.Value(1)).current;
 
-// --- Type Definitions ---
-type FormItem = {
-  key: keyof DrawerStackParamList;
-  label: string;
-  icon: string;
-};
-
-// FIX: Define the parameters for the Drawer navigator itself.
-// This tells TypeScript that the 'Root' screen can accept parameters for the nested stack.
-type AppDrawerParamList = {
-  Root: NavigatorScreenParams<DrawerStackParamList>;
-};
-
-// FIX: Create a fully-typed composite navigation prop that understands both navigators.
-type SideNavBarNavigationProp = CompositeNavigationProp<
-  DrawerNavigationProp<AppDrawerParamList, 'Root'>,
-  NativeStackNavigationProp<DrawerStackParamList>
->;
-
-
-// --- Constants ---
-const FORM_ITEMS: FormItem[] = [
-  { key: "DVRForm", label: "Daily Visit Report", icon: "clipboard-text-outline" },
-  { key: "TVRForm", label: "Technical Visit Report", icon: "tools" },
-  { key: "SalesOrderForm", label: "Sales Order", icon: "cart-plus" },
-  { key: "LeaveApplicationForm", label: "Leave Application", icon: "calendar-check-outline" },
-  { key: "AddDealerForm", label: "Add Dealer", icon: "store-plus-outline" },
-  { key: "CompetitionReportForm", label: "Competition Report", icon: "chart-line-variant" },
-  { key: "AddPJPForm", label: "Plan Journey (PJP)", icon: "map-marker-path" },
-];
-
-// --- Component ---
-export default function SideNavBar(props: DrawerContentComponentProps) {
-  const { user, setUser } = useAppStore();
-  // Use the correctly typed navigation hook
-  const navigation = useNavigation<SideNavBarNavigationProp>();
-
-  // Fetch user on mount if not already loaded
   useEffect(() => {
-    const loadUser = async () => {
-      if (!user?.id) {
-        try {
-          // Replace with actual userId from your auth/session
-          const userId = 1;
-          const fetchedUser = await fetchUserById(userId);
-          setUser(fetchedUser);
-        } catch (err) {
-          console.error("Failed to load user:", err);
+    // Continuous glow animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(profileGlow, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.inOut(Easing.sin), // ✅ FIXED
+          useNativeDriver: true,
+        }),
+        Animated.timing(profileGlow, {
+          toValue: 0.5,
+          duration: 3000,
+          easing: Easing.inOut(Easing.sin), // ✅ FIXED
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Subtle pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(profilePulse, {
+          toValue: 1.05,
+          duration: 4000,
+          easing: Easing.inOut(Easing.sin), // ✅ FIXED
+          useNativeDriver: true,
+        }),
+        Animated.timing(profilePulse, {
+          toValue: 1,
+          duration: 4000,
+          easing: Easing.inOut(Easing.sin), // ✅ FIXED
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View 
+      style={[
+        styles.profileSection,
+        { 
+          transform: [{ scale: profilePulse }],
+          opacity: profileGlow
         }
-      }
-    };
-    loadUser();
-  }, [user, setUser]);
+      ]}
+    >
+      <BlurView intensity={15} tint="dark" style={styles.profileBlur}>
+        <LinearGradient
+          colors={['rgba(6, 182, 212, 0.2)', 'rgba(6, 182, 212, 0.1)']}
+          style={styles.profileGradient}
+        >
+          <Animated.View style={[styles.avatarContainer, { opacity: profileGlow }]}>
+            <LinearGradient
+              colors={['#06b6d4', '#0891b2']}
+              style={styles.avatarGradient}
+            >
+              <Text style={styles.avatarText}>
+                {user?.firstName?.[0] || 'A'}{user?.lastName?.[0] || 'G'}
+              </Text>
+            </LinearGradient>
+          </Animated.View>
+          
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>
+              {user?.firstName || 'Agent'} {user?.lastName || 'Field Ops'}
+            </Text>
+            <Text style={styles.userRole}>
+              {user?.role || 'Field Operations Specialist'}
+            </Text>
+            <Text style={styles.userCompany}>
+              {user?.companyName || 'Field Operations HQ'}
+            </Text>
+          </View>
 
-  const getInitials = () => {
-    const first = user?.firstName?.[0] || "";
-    const last = user?.lastName?.[0] || "";
-    return `${first}${last}`.toUpperCase() || "JD";
-  };
+          {/* Status Indicator */}
+          <Animated.View 
+            style={[
+              styles.statusIndicator,
+              { 
+                opacity: profileGlow,
+                transform: [{ scale: profileGlow }]
+              }
+            ]}
+          >
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>NEURAL LINK ACTIVE</Text>
+          </Animated.View>
+        </LinearGradient>
+      </BlurView>
+    </Animated.View>
+  );
+};
 
-  const navigateToNested = (screenName: keyof DrawerStackParamList) => {
-    if (screenName === "MainTabs") {
-      // Always drop users into Home tab if MainTabs is clicked
-      navigation.navigate("Root", { screen: "MainTabs", params: { screen: "Home" } });
+// Enhanced Animated Menu Item Component
+const AnimatedMenuItem: React.FC<{
+  icon: string;
+  label: string;
+  onPress: () => void;
+  index: number;
+}> = ({ icon, label, onPress, index }) => {
+  const slideAnim = useRef(new Animated.Value(-100)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Staggered entrance animation
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 600,
+      delay: index * 100,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [index]);
+
+  const handlePress = () => {
+    // Haptic feedback
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } else {
-      navigation.navigate("Root", { screen: screenName });
+      Vibration.vibrate(50);
     }
-    navigation.closeDrawer();
-  };
 
-  const navigateToDashboard = () => {
-    navigation.navigate("Root", { screen: "MainTabs", params: { screen: "Home" } });
-    navigation.closeDrawer();
+    // Press animation
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 300,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    onPress();
   };
 
   return (
-    <DrawerContentScrollView {...props} className="bg-slate-900">
-      {/* User Header */}
-      <View className="p-5 flex-row items-center">
-        <Avatar.Text size={50} label={getInitials()} className="bg-blue-600" />
-        <View className="ml-4">
-          <Text variant="titleMedium" className="text-slate-200 font-bold">
-            {user ? `${user.firstName} ${user.lastName}` : "John Doe"}
-          </Text>
-          <Text variant="bodySmall" className="text-slate-400">
-            {user?.role || "User Role"}
-          </Text>
-        </View>
-      </View>
-      <Divider className="bg-slate-700" />
+    <Animated.View
+      style={[
+        styles.menuItemContainer,
+        {
+          transform: [
+            { translateX: slideAnim },
+            { scale: scaleAnim }
+          ],
+        },
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={handlePress}
+        activeOpacity={0.8}
+      >
+        <Animated.View 
+          style={[
+            styles.menuItemContent,
+            {
+              backgroundColor: glowAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['rgba(6, 182, 212, 0.1)', 'rgba(6, 182, 212, 0.3)'],
+              }),
+            }
+          ]}
+        >
+          <View style={styles.iconContainer}>
+            <LinearGradient
+              colors={['#06b6d4', '#0891b2']}
+              style={styles.iconGradient}
+            >
+              <Icon name={icon} size={22} color="white" />
+            </LinearGradient>
+          </View>
+          
+          <Text style={styles.menuLabel}>{label}</Text>
+          
+          <Animated.View 
+            style={[
+              styles.arrowContainer,
+              { opacity: glowAnim }
+            ]}
+          >
+            <Icon name="chevron-right" size={20} color="#06b6d4" />
+          </Animated.View>
+        </Animated.View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
-      {/* Dashboard Link */}
-      <List.Item
-        title="Dashboard"
-        titleStyle={{ color: "#e5e7eb", fontWeight: "600" }}
-        left={(p) => <List.Icon {...p} icon="home-variant-outline" color="#e5e7eb" />}
-        onPress={navigateToDashboard}
+// Enhanced Particle Effect Component
+const ParticleEffect: React.FC = () => {
+  const particles = useRef([...Array(6)].map(() => ({
+    x: new Animated.Value(Math.random() * 300),
+    y: new Animated.Value(Math.random() * 600),
+    opacity: new Animated.Value(Math.random() * 0.5 + 0.1),
+    scale: new Animated.Value(Math.random() * 0.5 + 0.5),
+  }))).current;
+
+  useEffect(() => {
+    const animations = particles.map((particle, index) => 
+      Animated.loop(
+        Animated.parallel([
+          Animated.timing(particle.x, {
+            toValue: Math.random() * 300,
+            duration: 8000 + index * 1000,
+            easing: Easing.inOut(Easing.sin), // ✅ FIXED
+            useNativeDriver: true,
+          }),
+          Animated.timing(particle.y, {
+            toValue: Math.random() * 600,
+            duration: 10000 + index * 800,
+            easing: Easing.inOut(Easing.sin), // ✅ FIXED
+            useNativeDriver: true,
+          }),
+          Animated.timing(particle.opacity, {
+            toValue: Math.random() * 0.5 + 0.1,
+            duration: 6000 + index * 500,
+            easing: Easing.inOut(Easing.sin), // ✅ FIXED
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    );
+
+    animations.forEach(anim => anim.start());
+    
+    return () => animations.forEach(anim => anim.stop());
+  }, []);
+
+  return (
+    <View style={styles.particleContainer} pointerEvents="none">
+      {particles.map((particle, index) => (
+        <Animated.View
+          key={index}
+          style={[
+            styles.particle,
+            {
+              transform: [
+                { translateX: particle.x },
+                { translateY: particle.y },
+                { scale: particle.scale },
+              ],
+              opacity: particle.opacity,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+};
+
+// Main SideNavBar Component
+export default function SideNavBar(props: any) {
+  const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const glowLineAnim = useRef(new Animated.Value(0)).current;
+
+  // Mock user data (replace with actual user data)
+  const user = {
+    firstName: 'Agent',
+    lastName: 'Field',
+    role: 'Neural Operations Specialist',
+    companyName: 'Mission Control HQ',
+  };
+
+  const menuItems = [
+    { icon: 'view-dashboard', label: 'Mission Control', screen: 'Home' },
+    { icon: 'map-marker-path', label: 'Journey Tracker', screen: 'Journey' },
+    { icon: 'robot', label: 'AI Neural Link', screen: 'AIChat' },
+    { icon: 'account-circle', label: 'Agent Profile', screen: 'Profile' },
+    { icon: 'plus-circle', label: 'Deploy PJP', screen: 'AddPJPForm' },
+    { icon: 'office-building', label: 'Add Dealer Hub', screen: 'AddDealerForm' },
+    { icon: 'map-marker-plus', label: 'Register Site', screen: 'AddSiteForm' },
+    { icon: 'clipboard-list', label: 'Daily Protocols', screen: 'DailyTasksForm' },
+    { icon: 'clock-check', label: 'Attendance Log', screen: 'AttendanceForm' },
+    { icon: 'chart-line', label: 'Intel Report', screen: 'CompetitionReportForm' },
+    { icon: 'file-document', label: 'DVR Analysis', screen: 'DVRForm' },
+    { icon: 'calendar-remove', label: 'Leave Request', screen: 'LeaveApplicationForm' },
+    { icon: 'cart-plus', label: 'Sales Order', screen: 'SalesOrderForm' },
+    { icon: 'file-chart', label: 'TVR Report', screen: 'TVRForm' },
+  ];
+
+  useEffect(() => {
+    // Background entrance animation
+    Animated.timing(backgroundAnim, {
+      toValue: 1,
+      duration: 800,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    // Glow line animation
+    Animated.loop(
+      Animated.timing(glowLineAnim, {
+        toValue: 1,
+        duration: 3000,
+        easing: Easing.inOut(Easing.sin), // ✅ FIXED
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  const handleNavigation = (screen: string) => {
+    props.navigation.navigate(screen);
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Neural Disconnect',
+      'Terminate consciousness interface and return to standby mode?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Disconnect', 
+          style: 'destructive',
+          onPress: () => {
+            if (Platform.OS === 'ios') {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            } else {
+              Vibration.vibrate(100);
+            }
+            Alert.alert('System', 'Neural link terminated successfully.');
+          }
+        },
+      ]
+    );
+  };
+
+  return (
+    <Animated.View 
+      style={[
+        styles.container,
+        { opacity: backgroundAnim }
+      ]}
+    >
+      {/* Particle Effects */}
+      <ParticleEffect />
+
+      {/* Animated Glow Line */}
+      <Animated.View
+        style={[
+          styles.glowLine,
+          {
+            opacity: glowLineAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.3, 1],
+            }),
+            transform: [{
+              translateY: glowLineAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 200],
+              }),
+            }],
+          },
+        ]}
       />
-      <Divider className="bg-slate-700" />
 
-      {/* Forms Section */}
-      <List.Section>
-        <List.Subheader className="text-slate-400 font-bold tracking-wider pt-4">
-          Submit Reports & Forms
-        </List.Subheader>
-        {FORM_ITEMS.map((item) => (
-          <List.Item
-            key={item.key}
-            title={item.label}
-            titleStyle={{ color: "#d1d5db", fontSize: 14 }}
-            onPress={() => navigateToNested(item.key)}
-            left={(p) => <List.Icon {...p} icon={item.icon} color="#d1d5db" />}
-          />
-        ))}
-      </List.Section>
-    </DrawerContentScrollView>
+      <DrawerContentScrollView 
+        {...props} 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Enhanced User Profile */}
+        <AnimatedUserProfile user={user} />
+
+        {/* Enhanced Menu Items */}
+        <View style={styles.menuContainer}>
+          {menuItems.map((item, index) => (
+            <AnimatedMenuItem
+              key={item.screen}
+              icon={item.icon}
+              label={item.label}
+              onPress={() => handleNavigation(item.screen)}
+              index={index}
+            />
+          ))}
+        </View>
+
+        {/* Enhanced Logout Button */}
+        <View style={styles.logoutContainer}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.8}
+          >
+            <BlurView intensity={15} tint="dark" style={styles.logoutBlur}>
+              <LinearGradient
+                colors={['rgba(239, 68, 68, 0.2)', 'rgba(220, 38, 38, 0.1)']}
+                style={styles.logoutGradient}
+              >
+                <Icon name="power" size={20} color="#ef4444" />
+                <Text style={styles.logoutText}>NEURAL DISCONNECT</Text>
+              </LinearGradient>
+            </BlurView>
+          </TouchableOpacity>
+        </View>
+      </DrawerContentScrollView>
+    </Animated.View>
   );
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  particleContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  particle: {
+    position: 'absolute',
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#06b6d4',
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  glowLine: {
+    position: 'absolute',
+    left: 0,
+    width: 2,
+    height: 100,
+    backgroundColor: '#06b6d4',
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 10,
+    elevation: 5,
+    zIndex: 1,
+  },
+  scrollView: {
+    flex: 1,
+    zIndex: 2,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  profileSection: {
+    margin: 20,
+    marginBottom: 30,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  profileBlur: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(6, 182, 212, 0.3)',
+  },
+  profileGradient: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  avatarContainer: {
+    marginBottom: 15,
+  },
+  avatarGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  avatarText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'white',
+    letterSpacing: 2,
+  },
+  userInfo: {
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  userRole: {
+    fontSize: 13,
+    color: '#06b6d4',
+    marginBottom: 2,
+    letterSpacing: 0.5,
+  },
+  userCompany: {
+    fontSize: 11,
+    color: '#94a3b8',
+    letterSpacing: 0.3,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10b981',
+    marginRight: 8,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#10b981',
+    letterSpacing: 1,
+  },
+  menuContainer: {
+    paddingHorizontal: 10,
+  },
+  menuItemContainer: {
+    marginBottom: 8,
+  },
+  menuItem: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  menuItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+  },
+  iconContainer: {
+    marginRight: 16,
+  },
+  iconGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  menuLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    flex: 1,
+    letterSpacing: 0.3,
+  },
+  arrowContainer: {
+    marginLeft: 8,
+  },
+  logoutContainer: {
+    margin: 20,
+    marginTop: 30,
+  },
+  logoutButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  logoutBlur: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  logoutGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  logoutText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ef4444',
+    letterSpacing: 1,
+  },
+});
