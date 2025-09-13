@@ -1,14 +1,10 @@
-// Use export default for ES module compatibility
-export default function (api) {
+module.exports = function (api) {
   api.cache(true);
   return {
-    presets: [
-      ["babel-preset-expo", { jsxImportSource: "nativewind" }],
-      "nativewind/babel",
-    ],
+    presets: ["babel-preset-expo"],
     plugins: [
-      'react-native-paper/babel',
-      'react-native-reanimated/plugin'
+      "react-native-paper/babel",
+      "react-native-reanimated/plugin", // must be last
     ],
   };
 };

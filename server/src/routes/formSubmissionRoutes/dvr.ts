@@ -7,46 +7,6 @@ import { dailyVisitReports, insertDailyVisitReportSchema } from '../../db/schema
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
-// Manual Zod schema EXACTLY matching the table schema
-// const dailyVisitReportSchema = z.object({
-//   userId: z.number().int().positive(),
-//   reportDate: z.string().or(z.date()),
-//   dealerType: z.string().max(50),
-//   dealerName: z.string().max(255).optional().nullable().or(z.literal("")),
-//   subDealerName: z.string().max(255).optional().nullable().or(z.literal("")),
-//   location: z.string().max(500),
-//   latitude: z.string(),
-//   longitude: z.string(),
-//   visitType: z.string().max(50),
-//   dealerTotalPotential: z.string(),
-//   dealerBestPotential: z.string(),
-//   brandSelling: z.array(z.string()).min(1),
-//   contactPerson: z.string().max(255).optional().nullable().or(z.literal("")),
-//   contactPersonPhoneNo: z.string().max(20).optional().nullable().or(z.literal("")),
-//   todayOrderMt: z.string(),
-//   todayCollectionRupees: z.string(),
-//   overdueAmount: z.string().optional().nullable().or(z.literal("")),
-//   feedbacks: z.string().max(500),
-//   solutionBySalesperson: z.string().max(500).optional().nullable().or(z.literal("")),
-//   anyRemarks: z.string().max(500).optional().nullable().or(z.literal("")),
-//   checkInTime: z.string().or(z.date()),
-//   checkOutTime: z.string().or(z.date()).optional().nullable().or(z.literal("")),
-//   inTimeImageUrl: z.string().max(500).optional().nullable().or(z.literal("")),
-//   outTimeImageUrl: z.string().max(500).optional().nullable().or(z.literal("")),
-// }).transform((data) => ({
-//   ...data,
-//   dealerName: data.dealerName === "" ? null : data.dealerName,
-//   subDealerName: data.subDealerName === "" ? null : data.subDealerName,
-//   contactPerson: data.contactPerson === "" ? null : data.contactPerson,
-//   contactPersonPhoneNo: data.contactPersonPhoneNo === "" ? null : data.contactPersonPhoneNo,
-//   overdueAmount: data.overdueAmount === "" ? null : data.overdueAmount,
-//   solutionBySalesperson: data.solutionBySalesperson === "" ? null : data.solutionBySalesperson,
-//   anyRemarks: data.anyRemarks === "" ? null : data.anyRemarks,
-//   checkOutTime: data.checkOutTime === "" ? null : data.checkOutTime,
-//   inTimeImageUrl: data.inTimeImageUrl === "" ? null : data.inTimeImageUrl,
-//   outTimeImageUrl: data.outTimeImageUrl === "" ? null : data.outTimeImageUrl,
-// }));
-
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
   table: any,

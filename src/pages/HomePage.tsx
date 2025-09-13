@@ -3,20 +3,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   ScrollView,
-  StyleSheet,
   TouchableOpacity,
   StatusBar as RNStatusBar,
-  Dimensions,
   Platform,
   Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, Card, Text, Button, Portal, Modal, IconButton, ActivityIndicator } from 'react-native-paper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme, Text, Button, Portal, Modal, ActivityIndicator } from 'react-native-paper';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { isSameDay, format } from 'date-fns';
+import { format } from 'date-fns';
 import Toast from 'react-native-toast-message';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
@@ -24,22 +20,18 @@ import { useAppStore, BASE_URL, DrawerStackParamList, MainTabsParamList, PJP } f
 import AttendanceInForm from './forms/AttendanceInForm';
 import AttendanceOutForm from './forms/AttendanceOutForm';
 import AppHeader from '../components/AppHeader';
-import PJPFloatingCard from '../components/PJPFloatingCard'; // FIX: Changed import name
+import PJPFloatingCard from '../components/PJPFloatingCard';
 import MuiIcon from 'react-native-vector-icons/MaterialCommunityIcons';
-
-const { width } = Dimensions.get('window');
-
+import LiquidGlassCard from '../components/LiquidGlassCard';
 
 export default function HomePage() {
   const theme = useTheme();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabsParamList>>();
   const parentNavigation = useNavigation<NativeStackNavigationProp<DrawerStackParamList>>();
-  const { top } = useSafeAreaInsets();
-  const { user, attendanceStatus, setAttendanceStatus, dailyTasks } = useAppStore();
+  const { user, attendanceStatus, setAttendanceStatus } = useAppStore();
 
   const [isAttendanceModalVisible, setIsAttendanceModalVisible] = useState(false);
   const [attendanceFormType, setAttendanceFormType] = useState<'in' | 'out' | null>(null);
-
   const [todayPJPs, setTodayPJPs] = useState<PJP[]>([]);
   const [isLoadingPJPs, setIsLoadingPJPs] = useState(true);
 
@@ -50,7 +42,7 @@ export default function HomePage() {
     }
   }, [theme]);
 
-  // Fetch PJPs from API on component mount
+  // DATA IN - Fetch PJPs from API
   useEffect(() => {
     if (!user?.id) return;
 
@@ -78,6 +70,7 @@ export default function HomePage() {
     fetchPJPs();
   }, [user?.id]);
 
+  // TINY HANDLERS - Connect UI to actions
   const handleAttendanceAction = useCallback((type: 'in' | 'out') => {
     setAttendanceFormType(type);
     setIsAttendanceModalVisible(true);
@@ -119,9 +112,9 @@ export default function HomePage() {
   const renderAttendanceForm = () => {
     if (!user?.id) {
       return (
-        <View style={styles.modalContent}>
+        <View className="p-4 items-center">
           <Text>User ID not found. Cannot proceed with attendance.</Text>
-          <Button onPress={handleAttendanceCancelled} style={styles.modalButton}>Close</Button>
+          <Button onPress={handleAttendanceCancelled} className="mt-4">Close</Button>
         </View>
       );
     }
@@ -150,221 +143,196 @@ export default function HomePage() {
   const displayedPJPs = todayPJPs.slice(0, 6);
   const hasMorePJPs = todayPJPs.length > 6;
 
+  // UI OUT - LIQUID GLASS MAGIC WITH NATIVEWIND! 🔥
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="flex-1" style={{ backgroundColor: theme.colors.background }}>
       <AppHeader title="Home Page" />
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: 16 }]}
+      
+      <ScrollView 
+        className="flex-1"
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* User Info Header */}
-        <View style={[styles.header, { paddingTop: 0 }]}>
-          <Text style={[styles.greetingText, { color: theme.colors.primary }]}>{getGreeting()}</Text>
-          <Text style={[styles.userName, { color: theme.colors.onSurface }]}>
-            {user?.firstName || 'Agent'} {user?.lastName || 'Field Ops'}
-          </Text>
-          <Text style={[styles.userEmail, { color: theme.colors.onSurfaceVariant }]}>{user?.email || 'user@example.com'}</Text>
-          <Text style={[styles.userRole, { color: theme.colors.onSurfaceVariant }]}>{user?.role || 'Field Operations Specialist'}</Text>
-        </View>
-
-        {/* Attendance Buttons */}
-        <View style={styles.attendanceButtonsContainer}>
-          <Button
-            mode="contained"
-            onPress={() => handleAttendanceAction('in')}
-            disabled={attendanceStatus === 'in'}
-            style={[styles.attendanceButton, { backgroundColor: theme.colors.primary }]}
-            icon="login"
-          >
-            Check In
-          </Button>
-          <Button
-            mode="contained"
-            onPress={() => handleAttendanceAction('out')}
-            disabled={attendanceStatus !== 'in'}
-            style={[styles.attendanceButton, { backgroundColor: theme.colors.secondary }]}
-            icon="logout"
-          >
-            Check Out
-          </Button>
-        </View>
-
-        {/* PJP Overview Section */}
-        <View style={styles.pjpSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
-              Today's PJPs
+        {/* User Info Header - LIQUID GLASS MASTERPIECE */}
+        <LiquidGlassCard className="mx-4 shadow-xl" intensity={20}>
+          <View className="items-center">
+            <Text 
+              className="text-lg font-semibold tracking-wide" 
+              style={{ color: theme.colors.primary }}
+            >
+              {getGreeting()}
             </Text>
-            <IconButton
-              icon="plus"
-              onPress={handleCreatePJP}
-              size={24}
-              iconColor={theme.colors.primary}
-              style={[styles.pjpPlusButton, { backgroundColor: theme.colors.inverseSurface }]}
-            />
+            <Text 
+              className="text-2xl font-bold mt-1 tracking-wide" 
+              style={{ color: theme.colors.onSurface }}
+            >
+              {user?.firstName || 'Agent'} {user?.lastName || 'Field Ops'}
+            </Text>
+            <Text 
+              className="text-sm mt-1" 
+              style={{ color: theme.colors.onSurfaceVariant }}
+            >
+              {user?.email || 'user@example.com'}
+            </Text>
+            <Text 
+              className="text-xs font-semibold mt-1" 
+              style={{ color: theme.colors.onSurfaceVariant }}
+            >
+              {user?.role || 'Field Operations Specialist'}
+            </Text>
           </View>
+        </LiquidGlassCard>
 
-          {isLoadingPJPs ? (
-            <View style={styles.pjpEmptyCardContent}>
-              <ActivityIndicator size="large" />
-              <Text style={[styles.pjpEmptyText, { color: theme.colors.onSurfaceVariant }]}>Loading missions...</Text>
+        {/* Attendance Buttons - LIQUID GLASS POWER */}
+        <LiquidGlassCard className="mx-4 shadow-xl" intensity={18}>
+          <View className="flex-row justify-between gap-4">
+            <TouchableOpacity
+              onPress={() => handleAttendanceAction('in')}
+              disabled={attendanceStatus === 'in'}
+              className="flex-1 flex-row items-center justify-center py-4 rounded-2xl gap-2"
+              style={{ 
+                backgroundColor: `${theme.colors.primary}CC`,
+                opacity: attendanceStatus === 'in' ? 0.5 : 1
+              }}
+            >
+              <MuiIcon name="login" size={20} color="white" />
+              <Text className="text-white font-semibold text-base">Check In</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              onPress={() => handleAttendanceAction('out')}
+              disabled={attendanceStatus !== 'in'}
+              className="flex-1 flex-row items-center justify-center py-4 rounded-2xl gap-2"
+              style={{ 
+                backgroundColor: `${theme.colors.secondary}CC`,
+                opacity: attendanceStatus !== 'in' ? 0.5 : 1
+              }}
+            >
+              <MuiIcon name="logout" size={20} color="white" />
+              <Text className="text-white font-semibold text-base">Check Out</Text>
+            </TouchableOpacity>
+          </View>
+        </LiquidGlassCard>
+
+        {/* PJP Section Header - LIQUID GLASS ELEGANCE */}
+        <View className="mt-6">
+          <LiquidGlassCard className="mx-4 shadow-lg" intensity={12}>
+            <View className="flex-row justify-between items-center">
+              <Text 
+                className="text-xl font-bold" 
+                style={{ color: theme.colors.onSurface }}
+              >
+                Today's PJPs
+              </Text>
+              <TouchableOpacity
+                onPress={handleCreatePJP}
+                className="w-12 h-12 rounded-2xl items-center justify-center"
+                style={{ backgroundColor: `${theme.colors.primary}40` }}
+              >
+                <MuiIcon name="plus" size={24} color={theme.colors.primary} />
+              </TouchableOpacity>
             </View>
-          ) : todayPJPs.length > 0 ? (
+          </LiquidGlassCard>
+
+          {/* Loading State - LIQUID GLASS */}
+          {isLoadingPJPs ? (
+            <LiquidGlassCard className="mx-4 shadow-lg" intensity={15}>
+              <View className="items-center justify-center py-8">
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text 
+                  className="mt-4 text-sm text-center" 
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  Loading missions...
+                </Text>
+              </View>
+            </LiquidGlassCard>
+          ) 
+          
+          /* PJP List - LIQUID GLASS CARDS */
+          : todayPJPs.length > 0 ? (
             <View>
               {displayedPJPs.map((pjp) => (
-                <PJPFloatingCard
+                <LiquidGlassCard 
                   key={pjp.id}
-                  pjp={pjp}
-                  onCardPress={handlePJPDetails}
-                />
+                  className="mx-4 shadow-lg" 
+                  intensity={14}
+                  onPress={() => handlePJPDetails(pjp)}
+                >
+                  <PJPFloatingCard
+                    pjp={pjp}
+                    onCardPress={() => {}} // Handled by LiquidGlassCard
+                  />
+                </LiquidGlassCard>
               ))}
+              
               {hasMorePJPs && (
-                <Button mode="text" onPress={handleShowMorePJPs} style={{ marginTop: 8 }}>
-                  Show More ({todayPJPs.length - displayedPJPs.length})
-                </Button>
+                <LiquidGlassCard className="mx-4 shadow-lg" intensity={10}>
+                  <TouchableOpacity 
+                    onPress={handleShowMorePJPs} 
+                    className="items-center py-4"
+                  >
+                    <Text 
+                      className="text-base font-semibold" 
+                      style={{ color: theme.colors.primary }}
+                    >
+                      Show More ({todayPJPs.length - displayedPJPs.length})
+                    </Text>
+                  </TouchableOpacity>
+                </LiquidGlassCard>
               )}
             </View>
-          ) : (
-            <Card style={[styles.pjpEmptyCard, { backgroundColor: theme.colors.surfaceVariant }]}>
-              <Card.Content style={styles.pjpEmptyCardContent}>
-                <MuiIcon name="calendar-search" size={48} color={theme.colors.onSurfaceVariant} />
-                <Text style={[styles.pjpEmptyText, { color: theme.colors.onSurfaceVariant }]}>No missions planned for today.</Text>
-                <Button mode="outlined" onPress={handleCreatePJP} style={styles.pjpEmptyButton}>
-                  Plan a new mission
-                </Button>
-              </Card.Content>
-            </Card>
+          ) 
+          
+          /* Empty State - LIQUID GLASS */
+          : (
+            <LiquidGlassCard className="mx-4 shadow-lg" intensity={15}>
+              <View className="items-center justify-center py-10">
+                <MuiIcon 
+                  name="calendar-search" 
+                  size={48} 
+                  color={theme.colors.onSurfaceVariant} 
+                />
+                <Text 
+                  className="mt-4 mb-4 text-sm text-center" 
+                  style={{ color: theme.colors.onSurfaceVariant }}
+                >
+                  No missions planned for today.
+                </Text>
+                <TouchableOpacity 
+                  onPress={handleCreatePJP}
+                  className="flex-row items-center justify-center py-4 px-6 rounded-2xl mt-2"
+                  style={{ backgroundColor: `${theme.colors.primary}80` }}
+                >
+                  <Text className="text-white font-semibold text-base">
+                    Plan a new mission
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </LiquidGlassCard>
           )}
         </View>
       </ScrollView>
 
-      {/* Attendance Modals */}
+      {/* Modal - LIQUID GLASS OVERLAY */}
       <Portal>
         <Modal
           visible={isAttendanceModalVisible}
           onDismiss={handleAttendanceCancelled}
-          contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}
+          contentContainerStyle={{ 
+            marginHorizontal: 20, 
+            marginVertical: 60, 
+            flex: 1, 
+            backgroundColor: 'transparent' 
+          }}
         >
-          <SafeAreaView style={{ flex: 1 }}>
-            {renderAttendanceForm()}
-          </SafeAreaView>
+          <LiquidGlassCard className="flex-1" intensity={25}>
+            <SafeAreaView className="flex-1">
+              {renderAttendanceForm()}
+            </SafeAreaView>
+          </LiquidGlassCard>
         </Modal>
       </Portal>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 0,
-    paddingBottom: 100,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 16,
-  },
-  greetingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 4,
-    letterSpacing: 0.5,
-  },
-  userEmail: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  userRole: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  attendanceButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
-    marginVertical: 20,
-    paddingHorizontal: 16,
-  },
-  attendanceButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  pjpSection: {
-    marginTop: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  pjpPlusButton: {
-    borderRadius: 12,
-  },
-  pjpList: {
-    paddingRight: 16,
-  },
-  pjpEmptyCard: {
-    marginHorizontal: 16,
-    borderRadius: 16,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  pjpEmptyCardContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  pjpEmptyText: {
-    marginTop: 16,
-    marginBottom: 16,
-    fontSize: 14,
-  },
-  pjpEmptyButton: {
-    marginTop: 12,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 80,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 8,
-  },
-  modalContainer: {
-    marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 8,
-    flex: 1,
-  },
-  modalContent: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  modalButton: {
-    marginTop: 16,
-  },
-});

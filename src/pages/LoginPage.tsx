@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StatusBar,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -11,7 +10,6 @@ import {
 import {
   TextInput,
   Button,
-  Card,
   Text,
   HelperText,
   useTheme,
@@ -22,12 +20,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { useAppStore, AppStackParamList, fetchUserById, BASE_URL } from '../components/ReusableConstants';
+import LiquidGlassCard from '../components/LiquidGlassCard';
 
 type LoginScreenProps = NativeStackScreenProps<AppStackParamList, 'Login'>;
 
 // Main Component
 export default function LoginPage({ route }: LoginScreenProps) {
-  const { setIsAuthenticated, setUser } = useAppStore(); // <-- Get setters from Zustand
+  const { setIsAuthenticated, setUser } = useAppStore();
   const theme = useTheme();
 
   const [formData, setFormData] = useState({
@@ -79,34 +78,52 @@ export default function LoginPage({ route }: LoginScreenProps) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View className="flex-1" style={{ backgroundColor: theme.colors.background }}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardContainer}
+        className="flex-1 justify-center p-5"
       >
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: theme.colors.surfaceVariant }]}>
-          <View style={[styles.logoContainer, { backgroundColor: theme.colors.primary }]}>
-            <MaterialCommunityIcons name="account-lock" size={40} color={theme.colors.onPrimary} />
+        {/* Header - LIQUID GLASS */}
+        <LiquidGlassCard className="mx-0 mb-8 shadow-2xl" intensity={20}>
+          <View className="items-center">
+            <View 
+              className="w-16 h-16 rounded-full items-center justify-center mb-4"
+              style={{ backgroundColor: theme.colors.primary }}
+            >
+              <MaterialCommunityIcons 
+                name="account-lock" 
+                size={40} 
+                color={theme.colors.onPrimary} 
+              />
+            </View>
+            <Text 
+              className="text-2xl font-bold mb-1"
+              style={{ 
+                color: theme.colors.primary,
+                letterSpacing: 1 
+              }}
+            >
+              Salesman Mobile App
+            </Text>
           </View>
-          <Text style={[styles.title, { color: theme.colors.primary }]}>Salesman Mobile App</Text>
+        </LiquidGlassCard>
 
-        </View>
-
-        {/* Login Card */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={4}>
-          <Card.Content style={styles.cardContent}>
+        {/* Login Card - LIQUID GLASS */}
+        <LiquidGlassCard className="mx-0 shadow-2xl" intensity={18}>
+          <View className="gap-5">
             <TextInput
               label="Employee ID"
               value={formData.loginId}
               onChangeText={(text) => handleInputChange('loginId', text)}
               disabled={isLoading}
               left={<TextInput.Icon icon="account" />}
-              style={styles.textInput}
+              className="bg-transparent"
               autoCapitalize="none"
               keyboardType="email-address"
             />
+            
             <TextInput
               label="Password"
               value={formData.password}
@@ -114,7 +131,7 @@ export default function LoginPage({ route }: LoginScreenProps) {
               secureTextEntry
               disabled={isLoading}
               left={<TextInput.Icon icon="lock" />}
-              style={styles.textInput}
+              className="bg-transparent"
             />
 
             {error ? (
@@ -128,77 +145,24 @@ export default function LoginPage({ route }: LoginScreenProps) {
               onPress={handleLogin}
               loading={isLoading}
               disabled={isLoading}
-              style={[styles.loginButton, { backgroundColor: theme.colors.primary }]}
+              className="mt-2 py-1 rounded-xl"
+              style={{ backgroundColor: theme.colors.primary }}
               labelStyle={{ color: theme.colors.onPrimary }}
             >
               {isLoading ? 'INITIALIZING...' : 'LOG IN'}
             </Button>
 
-            <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: theme.colors.onSurfaceVariant }]}>
+            <View className="items-center mt-2">
+              <Text 
+                className="text-xs" 
+                style={{ color: theme.colors.onSurfaceVariant }}
+              >
                 Use your official credentials
               </Text>
             </View>
-          </Card.Content>
-        </Card>
+          </View>
+        </LiquidGlassCard>
       </KeyboardAvoidingView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-  },
-  header: {
-    marginBottom: 30,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-  },
-  logoContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    letterSpacing: 1,
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  card: {
-    borderRadius: 16,
-  },
-  cardContent: {
-    gap: 20,
-    padding: 24,
-  },
-  textInput: {
-    backgroundColor: 'transparent',
-  },
-  loginButton: {
-    borderRadius: 12,
-    marginTop: 10,
-    paddingVertical: 4,
-  },
-  footer: {
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  footerText: {
-    fontSize: 12,
-  },
-});

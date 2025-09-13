@@ -2,19 +2,19 @@
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  StyleSheet,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, Card, useTheme, TextInput } from 'react-native-paper';
+import { Text, Button, useTheme, TextInput } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import RNPickerSelect from 'react-native-picker-select';
 
 import AppHeader from '../components/AppHeader';
+import LiquidGlassCard from '../components/LiquidGlassCard';
 
-// --- Type Definitions (Reused from Web Page for Consistency) ---
+// --- Type Definitions ---
 interface Dealer {
   id: string;
   name: string;
@@ -29,24 +29,31 @@ interface Location {
 }
 type TripStatus = 'idle' | 'active' | 'completed';
 
-// --- Reusable UI Components for the Journey Flow ---
-
+// --- LIQUID GLASS Components ---
 interface JourneyStatsProps {
   distance: number;
   duration: number;
   theme: any;
 }
 const JourneyStats = ({ distance, duration, theme }: JourneyStatsProps) => (
-  <View style={styles.statsContainer}>
-    <View style={styles.statItem}>
+  <View className="flex-row justify-around my-4">
+    <View className="items-center">
       <Icon name="map-marker-distance" size={24} color={theme.colors.primary} />
-      <Text style={[styles.statValue, { color: theme.colors.onSurface }]}>{distance.toFixed(2)} km</Text>
-      <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Distance</Text>
+      <Text className="text-xl font-bold mt-2" style={{ color: theme.colors.onSurface }}>
+        {distance.toFixed(2)} km
+      </Text>
+      <Text className="text-xs" style={{ color: theme.colors.onSurfaceVariant }}>
+        Distance
+      </Text>
     </View>
-    <View style={styles.statItem}>
+    <View className="items-center">
       <Icon name="clock-time-four-outline" size={24} color={theme.colors.secondary} />
-      <Text style={[styles.statValue, { color: theme.colors.onSurface }]}>{Math.round(duration / 60)} min</Text>
-      <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>Duration</Text>
+      <Text className="text-xl font-bold mt-2" style={{ color: theme.colors.onSurface }}>
+        {Math.round(duration / 60)} min
+      </Text>
+      <Text className="text-xs" style={{ color: theme.colors.onSurfaceVariant }}>
+        Duration
+      </Text>
     </View>
   </View>
 );
@@ -59,42 +66,82 @@ interface TripPlanningCardProps {
   onGetCurrentLocation: () => void;
   theme: any;
 }
-const TripPlanningCard = ({ dealers, onDealerSelect, onStartTrip, isLoadingLocation, onGetCurrentLocation, theme }: TripPlanningCardProps) => (
-  <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-    <Card.Title
-      title="Plan New Journey"
-      titleStyle={[styles.cardTitle, { color: theme.colors.onSurface }]}
-    />
-    <Card.Content>
-      <View style={styles.inputContainer}>
+const TripPlanningCard = ({ 
+  dealers, 
+  onDealerSelect, 
+  onStartTrip, 
+  isLoadingLocation, 
+  onGetCurrentLocation, 
+  theme 
+}: TripPlanningCardProps) => (
+  <LiquidGlassCard className="mx-4 shadow-xl" intensity={18}>
+    <View>
+      <Text className="text-lg font-bold mb-4" style={{ color: theme.colors.onSurface }}>
+        Plan New Journey
+      </Text>
+      
+      <View className="mb-4">
         <TextInput
           label="Current Location"
           value="My Current Location"
           editable={false}
           right={<TextInput.Icon icon="crosshairs-gps" />}
-          style={styles.textInput}
+          className="bg-transparent"
         />
-        <Button mode="contained-tonal" onPress={onGetCurrentLocation} loading={isLoadingLocation} style={styles.fetchButton}>
+        <Button 
+          mode="contained-tonal" 
+          onPress={onGetCurrentLocation} 
+          loading={isLoadingLocation} 
+          className="mt-3"
+        >
           Fetch Location
         </Button>
       </View>
-      <View style={styles.inputContainer}>
-        <View style={[styles.pickerWrapper, { borderColor: theme.colors.outlineVariant }]}>
+
+      <View className="mb-4">
+        <View 
+          className="py-2 px-3 rounded-lg border"
+          style={{ 
+            backgroundColor: '#374151',
+            borderColor: theme.colors.outlineVariant 
+          }}
+        >
           <RNPickerSelect
             onValueChange={onDealerSelect}
             items={dealers.map(d => ({ label: d.name, value: d.id }))}
             placeholder={{ label: "Select Destination Dealer...", value: null }}
-            style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }}
+            style={{
+              inputIOS: {
+                fontSize: 16,
+                paddingVertical: 12,
+                paddingRight: 30,
+                color: 'white',
+              },
+              inputAndroid: {
+                fontSize: 16,
+                paddingVertical: 12,
+                paddingRight: 30,
+                color: 'white',
+              },
+              iconContainer: {
+                top: 15,
+                right: 15,
+              },
+              placeholder: {
+                color: '#9ca3af',
+              },
+            }}
             useNativeAndroidPickerStyle={false}
             Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurfaceVariant} />}
           />
         </View>
       </View>
-      <Button mode="contained" onPress={onStartTrip} style={styles.actionButton}>
+
+      <Button mode="contained" onPress={onStartTrip} className="mt-3">
         Start Tracking
       </Button>
-    </Card.Content>
-  </Card>
+    </View>
+  </LiquidGlassCard>
 );
 
 interface ActiveTripCardProps {
@@ -105,21 +152,32 @@ interface ActiveTripCardProps {
   theme: any;
 }
 const ActiveTripCard = ({ dealer, distance, duration, onCompleteTrip, theme }: ActiveTripCardProps) => (
-  <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-    <Card.Title
-      title="Active Journey"
-      subtitle={`To: ${dealer.name}`}
-      titleStyle={[styles.cardTitle, { color: theme.colors.onSurface }]}
-      subtitleStyle={{ color: theme.colors.onSurfaceVariant }}
-      left={(props) => <Icon name="map-marker-path" size={24} color={theme.colors.primary} />}
-    />
-    <Card.Content>
+  <LiquidGlassCard className="mx-4 shadow-xl" intensity={18}>
+    <View>
+      <View className="flex-row items-center mb-4">
+        <Icon name="map-marker-path" size={24} color={theme.colors.primary} />
+        <View className="ml-3">
+          <Text className="text-lg font-bold" style={{ color: theme.colors.onSurface }}>
+            Active Journey
+          </Text>
+          <Text className="text-sm" style={{ color: theme.colors.onSurfaceVariant }}>
+            To: {dealer.name}
+          </Text>
+        </View>
+      </View>
+      
       <JourneyStats distance={distance} duration={duration} theme={theme} />
-      <Button mode="contained" onPress={onCompleteTrip} style={[styles.actionButton, { backgroundColor: theme.colors.error }]}>
+      
+      <Button 
+        mode="contained" 
+        onPress={onCompleteTrip} 
+        className="mt-3"
+        style={{ backgroundColor: theme.colors.error }}
+      >
         Complete Trip
       </Button>
-    </Card.Content>
-  </Card>
+    </View>
+  </LiquidGlassCard>
 );
 
 interface CompletedTripCardProps {
@@ -129,19 +187,22 @@ interface CompletedTripCardProps {
   theme: any;
 }
 const CompletedTripCard = ({ distance, duration, onStartNew, theme }: CompletedTripCardProps) => (
-  <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-    <Card.Title
-      title="Journey Completed"
-      titleStyle={[styles.cardTitle, { color: theme.colors.onSurface }]}
-      left={(props) => <Icon name="check-circle" size={24} color={theme.colors.secondary} />}
-    />
-    <Card.Content>
+  <LiquidGlassCard className="mx-4 shadow-xl" intensity={18}>
+    <View>
+      <View className="flex-row items-center mb-4">
+        <Icon name="check-circle" size={24} color={theme.colors.secondary} />
+        <Text className="text-lg font-bold ml-3" style={{ color: theme.colors.onSurface }}>
+          Journey Completed
+        </Text>
+      </View>
+      
       <JourneyStats distance={distance} duration={duration} theme={theme} />
-      <Button mode="contained" onPress={onStartNew} style={styles.actionButton}>
+      
+      <Button mode="contained" onPress={onStartNew} className="mt-3">
         Start New Journey
       </Button>
-    </Card.Content>
-  </Card>
+    </View>
+  </LiquidGlassCard>
 );
 
 // --- Main Component ---
@@ -156,9 +217,8 @@ export default function JourneyTrackerPage() {
   const [duration, setDuration] = useState(0);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
-  // Mock API calls to mimic the web version's functionality
+  // Mock API calls
   useEffect(() => {
-    // Mock fetching dealers
     const mockFetchDealers = () => {
       setDealers([
         { id: '1', name: 'Alpha Dealer', address: '123 Main St', latitude: 26.1445, longitude: 91.7362 },
@@ -172,7 +232,6 @@ export default function JourneyTrackerPage() {
   const mockGetCurrentLocation = () => {
     setIsLoadingLocation(true);
     setTimeout(() => {
-      // Mock location data
       console.log("Mock location fetched.");
       setIsLoadingLocation(false);
     }, 1500);
@@ -184,10 +243,8 @@ export default function JourneyTrackerPage() {
       return;
     }
     setTripStatus('active');
-    // Start mock location tracking
     console.log("Mock trip started.");
     setTimeout(() => {
-      // Mock live data update
       setDistance(1.5);
       setDuration(120);
     }, 1000);
@@ -242,14 +299,22 @@ export default function JourneyTrackerPage() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['right', 'bottom', 'left']}>
+    <SafeAreaView 
+      className="flex-1" 
+      style={{ backgroundColor: theme.colors.background }} 
+      edges={['right', 'bottom', 'left']}
+    >
       <AppHeader title="Journey Tracker" />
-      <View style={styles.container}>
-        {/* Map Placeholder */}
-        <View style={[styles.mapPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
-          <Icon name="map-marker-path" size={48} color={theme.colors.primary} />
-          <Text style={[styles.mapText, { color: theme.colors.onSurfaceVariant }]}>Map is not yet implemented</Text>
-        </View>
+      <View className="flex-1 p-4">
+        {/* Map Placeholder - LIQUID GLASS */}
+        <LiquidGlassCard className="mx-4 mb-5 shadow-lg" intensity={12}>
+          <View className="h-40 justify-center items-center">
+            <Icon name="map-marker-path" size={48} color={theme.colors.primary} />
+            <Text className="mt-2 text-sm" style={{ color: theme.colors.onSurfaceVariant }}>
+              Map is not yet implemented
+            </Text>
+          </View>
+        </LiquidGlassCard>
 
         {/* Main Content Card */}
         {renderContent()}
@@ -257,80 +322,3 @@ export default function JourneyTrackerPage() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  mapPlaceholder: {
-    height: 200,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  mapText: {
-    marginTop: 8,
-    fontSize: 14,
-  },
-  card: {
-    borderRadius: 16,
-    paddingVertical: 8,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginVertical: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  textInput: {
-    backgroundColor: 'transparent',
-  },
-  fetchButton: {
-    marginTop: 12,
-  },
-  pickerWrapper: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  pickerInput: {
-    fontSize: 16,
-    paddingVertical: 12,
-    paddingRight: 30,
-    color: 'white',
-  },
-  pickerIcon: {
-    top: 15,
-    right: 15,
-  },
-  pickerPlaceholder: {
-    color: '#9ca3af',
-  },
-  actionButton: {
-    marginTop: 12,
-  },
-});

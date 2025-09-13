@@ -8,7 +8,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
+import "./global.css";
 import AppDrawer from "./components/SideDrawer";
 import LoginPage from "./pages/LoginPage";
 import theme from "./theme/paperTheme";

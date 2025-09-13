@@ -3,7 +3,7 @@ const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
-// point input to your css file
+// Remove the css-transformer config completely
 module.exports = withNativeWind(config, {
-  input: "./src/global.css",
+  input: "./global.css",
 });
