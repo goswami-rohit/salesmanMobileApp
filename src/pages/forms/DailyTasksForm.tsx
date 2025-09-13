@@ -1,8 +1,7 @@
-// src/pages/forms/DailyTasksForm.tsx
-import React, { useState } from 'react';
-import { ScrollView, View, TouchableOpacity, Platform, Alert, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, View, TouchableOpacity, Platform, Alert, StyleSheet, ActivityIndicator, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, TextInput, HelperText, useTheme } from 'react-native-paper';
+import { Text, Button, TextInput, HelperText, Modal, Portal, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useForm, Controller, Resolver } from 'react-hook-form';
@@ -12,7 +11,7 @@ import RNPickerSelect from 'react-native-picker-select';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 
-import { BASE_URL, useAppStore } from '../../components/ReusableConstants';
+import { BASE_URL, useAppStore, DEALER_TYPES } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
 import Toast from 'react-native-toast-message';
 
@@ -22,13 +21,22 @@ const DailyTaskSchema = z.object({
   assignedByUserId: z.number(),
   taskDate: z.date(),
   visitType: z.string().min(1, "Visit type is required"),
-  relatedDealerId: z.string().optional(),
+  relatedDealerId: z.string().optional().nullable(),
   siteName: z.string().optional(),
   description: z.string().optional(),
-  pjpId: z.string().optional(),
+  pjpId: z.string().optional().nullable(),
 });
 
 type DailyTaskFormValues = z.infer<typeof DailyTaskSchema>;
+
+interface Dealer {
+  id: string;
+  name: string;
+}
+interface PJP {
+  id: string;
+  planDate: string;
+}
 
 // --- Component ---
 export default function DailyTasksForm() {
@@ -37,19 +45,56 @@ export default function DailyTasksForm() {
   const { user } = useAppStore();
 
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [dealers] = useState([]); // TODO: Fetch from API
-  const [pjps] = useState([]); // TODO: Fetch from API
+  const [dealersData, setDealersData] = useState<Dealer[]>([]);
+  const [pjpsData, setPjpsData] = useState<PJP[]>([]);
+  const [isDealersLoading, setIsDealersLoading] = useState(true);
+  const [isPjpsLoading, setIsPjpsLoading] = useState(true);
 
-  const visitTypes = [
-    'Site Visit',
-    'Dealer Meeting',
-    'Customer Visit',
-    'Market Survey',
-    'Training Session',
-    'Installation',
-    'Service Call',
-    'Other',
-  ];
+  // Modal-related states
+  const [dealerModalVisible, setDealerModalVisible] = useState(false);
+  const [pjpModalVisible, setPjpModalVisible] = useState(false);
+  const [dealerSearchQuery, setDealerSearchQuery] = useState('');
+  const [pjpSearchQuery, setPjpSearchQuery] = useState('');
+
+  // Fetch dealers on component mount
+  useEffect(() => {
+    const fetchDealers = async () => {
+      try {
+        setIsDealersLoading(true);
+        const response = await fetch(`${BASE_URL}/api/dealers/user/${user?.id}`);
+        const result = await response.json();
+        if (response.ok && result.success) {
+          setDealersData(result.data.map((d: any) => ({ id: d.id, name: d.name })));
+        } else {
+          Alert.alert('Error', 'Failed to load dealers.');
+        }
+      } catch (err) {
+        Alert.alert('Error', 'Failed to fetch dealers.');
+      } finally {
+        setIsDealersLoading(false);
+      }
+    };
+    const fetchPjps = async () => {
+      try {
+        setIsPjpsLoading(true);
+        const response = await fetch(`${BASE_URL}/api/pjp/user/${user?.id}`);
+        const result = await response.json();
+        if (response.ok && result.success) {
+          setPjpsData(result.data.map((p: any) => ({ id: p.id, planDate: p.planDate })));
+        } else {
+          Alert.alert('Error', 'Failed to load PJPs.');
+        }
+      } catch (err) {
+        Alert.alert('Error', 'Failed to fetch PJPs.');
+      } finally {
+        setIsPjpsLoading(false);
+      }
+    };
+    fetchDealers();
+    fetchPjps();
+  }, [user?.id]);
+
+  const visitTypes = DEALER_TYPES;
 
   const {
     control,
@@ -65,14 +110,26 @@ export default function DailyTasksForm() {
       assignedByUserId: user?.id,
       taskDate: new Date(),
       visitType: '',
-      relatedDealerId: '',
+      relatedDealerId: null,
       siteName: '',
       description: '',
-      pjpId: '',
+      pjpId: null,
     },
   });
 
   const taskDate = watch('taskDate');
+  const relatedDealerId = watch('relatedDealerId');
+  const pjpId = watch('pjpId');
+
+  const selectedDealerName = dealersData.find(d => d.id === relatedDealerId)?.name || '';
+  const selectedPjpLabel = pjpsData.find(p => p.id === pjpId)?.planDate || '';
+
+  const filteredDealers = dealersData.filter(d =>
+    d.name.toLowerCase().includes(dealerSearchQuery.toLowerCase())
+  );
+  const filteredPjps = pjpsData.filter(p =>
+    p.planDate.toLowerCase().includes(pjpSearchQuery.toLowerCase())
+  );
 
   const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
@@ -89,9 +146,10 @@ export default function DailyTasksForm() {
       const payload = {
         ...values,
         taskDate: format(values.taskDate, 'yyyy-MM-dd'),
+        relatedDealerId: values.relatedDealerId || null,
+        pjpId: values.pjpId || null,
       };
 
-      // TODO: API call to create daily task
       const response = await fetch(`${BASE_URL}/api/daily-tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,8 +168,83 @@ export default function DailyTasksForm() {
 
   return (
     <SafeAreaView style={[{ backgroundColor: theme.colors.background }, styles.container]} edges={['right', 'bottom', 'left']}>
-      {/* Assuming AppHeader is a component that provides the back button and title */}
       <AppHeader title="Create Daily Task" />
+
+      <Portal>
+        {/* Dealer Selection Modal */}
+        <Modal visible={dealerModalVisible} onDismiss={() => setDealerModalVisible(false)} contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
+          <Text variant="titleLarge" style={styles.modalTitle}>Select Related Dealer</Text>
+          <TextInput
+            label="Search"
+            value={dealerSearchQuery}
+            onChangeText={setDealerSearchQuery}
+            mode="outlined"
+            right={<TextInput.Icon icon="magnify" />}
+            style={styles.searchBar}
+          />
+          {isDealersLoading ? (
+            <ActivityIndicator style={styles.loadingIndicator} />
+          ) : (
+            <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              {filteredDealers.length > 0 ? (
+                filteredDealers.map(d => (
+                  <TouchableOpacity
+                    key={d.id}
+                    onPress={() => {
+                      setValue('relatedDealerId', d.id, { shouldValidate: true });
+                      setDealerModalVisible(false);
+                      setDealerSearchQuery('');
+                    }}
+                    style={styles.dealerListItem}
+                  >
+                    <Text style={styles.dealerListItemText}>{d.name}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={styles.noResultsText}>No dealers found.</Text>
+              )}
+            </ScrollView>
+          )}
+          <Button mode="contained" onPress={() => setDealerModalVisible(false)} style={styles.doneButton}>Done</Button>
+        </Modal>
+
+        {/* PJP Selection Modal */}
+        <Modal visible={pjpModalVisible} onDismiss={() => setPjpModalVisible(false)} contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
+          <Text variant="titleLarge" style={styles.modalTitle}>Select PJP Reference</Text>
+          <TextInput
+            label="Search"
+            value={pjpSearchQuery}
+            onChangeText={setPjpSearchQuery}
+            mode="outlined"
+            right={<TextInput.Icon icon="magnify" />}
+            style={styles.searchBar}
+          />
+          {isPjpsLoading ? (
+            <ActivityIndicator style={styles.loadingIndicator} />
+          ) : (
+            <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              {filteredPjps.length > 0 ? (
+                filteredPjps.map(p => (
+                  <TouchableOpacity
+                    key={p.id}
+                    onPress={() => {
+                      setValue('pjpId', p.id, { shouldValidate: true });
+                      setPjpModalVisible(false);
+                      setPjpSearchQuery('');
+                    }}
+                    style={styles.dealerListItem}
+                  >
+                    <Text style={styles.dealerListItemText}>{`PJP: ${p.planDate}`}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={styles.noResultsText}>No PJPs found.</Text>
+              )}
+            </ScrollView>
+          )}
+          <Button mode="contained" onPress={() => setPjpModalVisible(false)} style={styles.doneButton}>Done</Button>
+        </Modal>
+      </Portal>
 
       {showDatePicker && (
         <DateTimePicker
@@ -166,19 +299,18 @@ export default function DailyTasksForm() {
         <Controller
           control={control}
           name="relatedDealerId"
-          render={({ field: { onChange, value } }) => (
+          render={({ field: { value } }) => (
             <View style={styles.inputContainer}>
-              <View style={[styles.pickerWrapper, { borderColor: errors.relatedDealerId ? theme.colors.error : theme.colors.outline }]}>
-                <RNPickerSelect
-                  onValueChange={onChange}
-                  value={value}
-                  items={(dealers || []).map((dealer: any) => ({ label: dealer.name, value: String(dealer.id) }))}
-                  placeholder={{ label: "Select Related Dealer (optional)", value: "" }}
-                  style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }}
-                  useNativeAndroidPickerStyle={false}
-                  Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+              <TouchableOpacity onPress={() => setDealerModalVisible(true)} activeOpacity={0.7}>
+                <TextInput
+                  label="Select Related Dealer (optional)"
+                  value={selectedDealerName}
+                  editable={false}
+                  mode="outlined"
+                  right={<TextInput.Icon icon="chevron-down" />}
+                  error={!!errors.relatedDealerId}
                 />
-              </View>
+              </TouchableOpacity>
               {errors.relatedDealerId && <HelperText type="error">{errors.relatedDealerId.message}</HelperText>}
             </View>
           )}
@@ -199,19 +331,18 @@ export default function DailyTasksForm() {
         <Controller
           control={control}
           name="pjpId"
-          render={({ field: { onChange, value } }) => (
+          render={({ field: { value } }) => (
             <View style={styles.inputContainer}>
-              <View style={[styles.pickerWrapper, { borderColor: errors.pjpId ? theme.colors.error : theme.colors.outline }]}>
-                <RNPickerSelect
-                  onValueChange={onChange}
-                  value={value}
-                  items={(pjps || []).map((pjp: any) => ({ label: `PJP ${pjp.id}`, value: String(pjp.id) }))}
-                  placeholder={{ label: "Select PJP Reference (optional)", value: "" }}
-                  style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }}
-                  useNativeAndroidPickerStyle={false}
-                  Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+              <TouchableOpacity onPress={() => setPjpModalVisible(true)} activeOpacity={0.7}>
+                <TextInput
+                  label="Select PJP Reference (optional)"
+                  value={selectedPjpLabel}
+                  editable={false}
+                  mode="outlined"
+                  right={<TextInput.Icon icon="chevron-down" />}
+                  error={!!errors.pjpId}
                 />
-              </View>
+              </TouchableOpacity>
               {errors.pjpId && <HelperText type="error">{errors.pjpId.message}</HelperText>}
             </View>
           )}
@@ -257,6 +388,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
+    paddingBottom: 40,
   },
   headerTitle: {
     fontWeight: 'bold',
@@ -295,5 +427,38 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 4,
     borderRadius: 8,
+  },
+  // Modal styles
+  modalContainer: {
+    padding: 20,
+    margin: 20,
+    borderRadius: 8,
+  },
+  modalTitle: {
+    marginBottom: 8,
+  },
+  searchBar: {
+    marginBottom: 12,
+  },
+  loadingIndicator: {
+    paddingVertical: 20,
+  },
+  dealerListItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#6b7280',
+  },
+  dealerListItemText: {
+    fontSize: 16,
+    color: '#e5e7eb',
+  },
+  noResultsText: {
+    textAlign: 'center',
+    marginTop: 20,
+    color: '#9ca3af',
+  },
+  doneButton: {
+    marginTop: 16,
   },
 });

@@ -1,4 +1,3 @@
-// src/pages/forms/DVRForm.tsx
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, TouchableOpacity, Platform, Alert, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,28 +18,30 @@ import AppHeader from '../../components/AppHeader';
 // --- Type Definitions ---
 type Step = 'checkin' | 'form' | 'checkout' | 'loading';
 
-// --- Zod Schema ---
+// --- Zod Schema (Updated to match DB schema) ---
 const DVReportSchema = z.object({
-  userId: z.number(),
-  reportDate: z.string(),
+  userId: z.number().int().positive(),
+  reportDate: z.string().min(1, "Report date is required"),
   dealerType: z.string().min(1, "Dealer type is required"),
   dealerName: z.string().min(1, "Dealer name is required"),
-  subDealerName: z.string().optional(),
+  subDealerName: z.string().optional().nullable(),
   location: z.string().min(1, "Location is required"),
-  latitude: z.number(),
-  longitude: z.number(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
   visitType: z.string().min(1, "Visit type is required"),
-  dealerTotalPotential: z.coerce.number().optional(),
-  dealerBestPotential: z.coerce.number().optional(),
+  // These fields are NOT NULL in the DB, so we remove .optional()
+  dealerTotalPotential: z.coerce.number().positive("Must be a positive number"),
+  dealerBestPotential: z.coerce.number().positive("Must be a positive number"),
   brandSelling: z.string().array().min(1, "Select at least one brand"),
-  contactPerson: z.string().optional(),
-  contactPersonPhoneNo: z.string().optional(),
-  todayOrderMt: z.coerce.number().optional(),
-  todayCollectionRupees: z.coerce.number().optional(),
-  overdueAmount: z.coerce.number().optional(),
+  contactPerson: z.string().optional().nullable(),
+  contactPersonPhoneNo: z.string().optional().nullable(),
+  // These fields are NOT NULL in the DB, so we remove .optional()
+  todayOrderMt: z.coerce.number().min(0, "Cannot be negative"),
+  todayCollectionRupees: z.coerce.number().min(0, "Cannot be negative"),
+  overdueAmount: z.coerce.number().optional().nullable(),
   feedbacks: z.string().min(1, "Feedback is required"),
-  solutionBySalesperson: z.string().optional(),
-  anyRemarks: z.string().optional(),
+  solutionBySalesperson: z.string().optional().nullable(),
+  anyRemarks: z.string().optional().nullable(),
 });
 type DVReportFormValues = z.infer<typeof DVReportSchema>;
 
@@ -63,6 +64,12 @@ export default function DVRForm() {
     defaultValues: {
       userId: user?.id,
       reportDate: new Date().toISOString().slice(0, 10),
+      // Default numeric values to 0 to align with non-nullable DB fields
+      dealerTotalPotential: 0,
+      dealerBestPotential: 0,
+      todayOrderMt: 0,
+      todayCollectionRupees: 0,
+      overdueAmount: 0,
       brandSelling: [],
     },
   });
@@ -74,6 +81,7 @@ export default function DVRForm() {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Camera access is required.');
+        // @ts-ignore
         navigation.goBack();
         return;
       }
@@ -108,7 +116,6 @@ export default function DVRForm() {
     }
   };
 
-  // FIX: Converted to use expo-location
   const useMyLocation = async () => {
     setIsGeoBusy(true);
     try {
@@ -147,6 +154,7 @@ export default function DVRForm() {
 
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
+      // Ensure all required fields are included
       if (value !== undefined && value !== null) {
         formData.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value));
       }
@@ -165,6 +173,7 @@ export default function DVRForm() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to submit report.');
       Toast.show({ type: 'success', text1: 'DVR Submitted Successfully' });
+      // @ts-ignore
       navigation.goBack();
     } catch (error: any) {
       Alert.alert('Submission Failed', error.message);
@@ -233,7 +242,7 @@ export default function DVRForm() {
               </View>{errors.dealerType && <HelperText type="error">{errors.dealerType?.message}</HelperText>}</View>
             )} />
             <Controller name="dealerName" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Dealer Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.dealerName} /><HelperText type="error">{errors.dealerName?.message}</HelperText></View>)} />
-            <Controller name="subDealerName" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Sub Dealer Name (Optional)" value={value} onChangeText={onChange} onBlur={onBlur} /></View>)} />
+            <Controller name="subDealerName" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Sub Dealer Name (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} /></View>)} />
 
             <View style={[styles.row, styles.inputContainer]}>
               <Controller name="location" control={control} render={({ field: { onChange, onBlur, value } }) => (<TextInput label="Location *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.location} style={styles.flex1} />)} />
@@ -242,19 +251,19 @@ export default function DVRForm() {
             {errors.location && <HelperText type="error" style={styles.errorText}>{errors.location?.message}</HelperText>}
 
             <Controller name="visitType" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Visit Type *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.visitType} /><HelperText type="error">{errors.visitType?.message}</HelperText></View>)} />
-            <Controller name="dealerTotalPotential" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Dealer Total Potential (MT)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View>)} />
-            <Controller name="dealerBestPotential" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Dealer Best Potential (MT)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View>)} />
+            <Controller name="dealerTotalPotential" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Dealer Total Potential (MT) *" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text) || 0)} onBlur={onBlur} error={!!errors.dealerTotalPotential} keyboardType="numeric" /><HelperText type="error">{errors.dealerTotalPotential?.message}</HelperText></View>)} />
+            <Controller name="dealerBestPotential" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Dealer Best Potential (MT) *" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text) || 0)} onBlur={onBlur} error={!!errors.dealerBestPotential} keyboardType="numeric" /><HelperText type="error">{errors.dealerBestPotential?.message}</HelperText></View>)} />
 
             <TouchableOpacity onPress={() => setBrandsModalVisible(true)} style={styles.inputContainer}>
               <TextInput label="Brands Selling *" editable={false} value={brandSelling.join(', ') || 'Select brands...'} error={!!errors.brandSelling} right={<TextInput.Icon icon="chevron-down" />} />
               {errors.brandSelling && <HelperText type="error">{errors.brandSelling?.message}</HelperText>}
             </TouchableOpacity>
 
-            <Controller name="contactPerson" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Contact Person" value={value} onChangeText={onChange} onBlur={onBlur} /></View>)} />
-            <Controller name="contactPersonPhoneNo" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Contact Person Phone" value={value} onChangeText={onChange} onBlur={onBlur} keyboardType="phone-pad" /></View>)} />
-            <Controller name="todayOrderMt" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Today's Order (MT)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View>)} />
-            <Controller name="todayCollectionRupees" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Today's Collection (₹)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View>)} />
-            <Controller name="overdueAmount" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Overdue Amount (₹)" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} keyboardType="numeric" /></View>)} />
+            <Controller name="contactPerson" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Contact Person (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} /></View>)} />
+            <Controller name="contactPersonPhoneNo" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Contact Person Phone (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} keyboardType="phone-pad" /></View>)} />
+            <Controller name="todayOrderMt" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Today's Order (MT) *" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text) || 0)} onBlur={onBlur} error={!!errors.todayOrderMt} keyboardType="numeric" /><HelperText type="error">{errors.todayOrderMt?.message}</HelperText></View>)} />
+            <Controller name="todayCollectionRupees" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Today's Collection (₹) *" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text) || 0)} onBlur={onBlur} error={!!errors.todayCollectionRupees} keyboardType="numeric" /><HelperText type="error">{errors.todayCollectionRupees?.message}</HelperText></View>)} />
+            <Controller name="overdueAmount" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Overdue Amount (₹) (Optional)" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text) || 0)} onBlur={onBlur} keyboardType="numeric" /></View>)} />
 
             <Controller control={control} name="feedbacks" render={({ field: { onChange, value } }) => (
               <View style={styles.inputContainer}><View style={[styles.pickerWrapper, { borderColor: errors.feedbacks ? theme.colors.error : theme.colors.outline }]}>
@@ -262,8 +271,8 @@ export default function DVRForm() {
               </View>{errors.feedbacks && <HelperText type="error">{errors.feedbacks?.message}</HelperText>}</View>
             )} />
 
-            <Controller name="solutionBySalesperson" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Solution by Salesperson" value={value} onChangeText={onChange} onBlur={onBlur} multiline /></View>)} />
-            <Controller name="anyRemarks" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Any Remarks" value={value} onChangeText={onChange} onBlur={onBlur} multiline /></View>)} />
+            <Controller name="solutionBySalesperson" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Solution by Salesperson (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} multiline /></View>)} />
+            <Controller name="anyRemarks" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Any Remarks (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} multiline /></View>)} />
 
             <Button mode="contained" onPress={handleProceedToCheckout} style={styles.button}>Continue to Checkout</Button>
           </ScrollView>

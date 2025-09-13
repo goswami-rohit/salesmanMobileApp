@@ -3,23 +3,23 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { salesReport } from '../../db/schema';
+import { salesReport, insertSalesReportSchema } from '../../db/schema';
 import { z } from 'zod';
 
 // Manual Zod schema EXACTLY matching the table schema with strict validation
-const salesReportSchema = z.object({
-  date: z.string().or(z.date()),
-  monthlyTarget: z.string().min(1, "Monthly target is required"),
-  tillDateAchievement: z.string().min(1, "Till date achievement is required"),
-  yesterdayTarget: z.string().optional().nullable().or(z.literal("")),
-  yesterdayAchievement: z.string().optional().nullable().or(z.literal("")),
-  salesPersonId: z.number().int().positive("Sales person ID must be a positive integer"),
-  dealerId: z.string().max(255).min(1, "Dealer ID is required"),
-}).transform((data) => ({
-  ...data,
-  yesterdayTarget: data.yesterdayTarget === "" ? null : data.yesterdayTarget,
-  yesterdayAchievement: data.yesterdayAchievement === "" ? null : data.yesterdayAchievement,
-}));
+// const salesReportSchema = z.object({
+//   date: z.string().or(z.date()),
+//   monthlyTarget: z.string().min(1, "Monthly target is required"),
+//   tillDateAchievement: z.string().min(1, "Till date achievement is required"),
+//   yesterdayTarget: z.string().optional().nullable().or(z.literal("")),
+//   yesterdayAchievement: z.string().optional().nullable().or(z.literal("")),
+//   salesPersonId: z.number().int().positive("Sales person ID must be a positive integer"),
+//   dealerId: z.string().max(255).min(1, "Dealer ID is required"),
+// }).transform((data) => ({
+//   ...data,
+//   yesterdayTarget: data.yesterdayTarget === "" ? null : data.yesterdayTarget,
+//   yesterdayAchievement: data.yesterdayAchievement === "" ? null : data.yesterdayAchievement,
+// }));
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -84,7 +84,7 @@ export default function setupSalesReportPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'sales-reports',
     table: salesReport,
-    schema: salesReportSchema,
+    schema: insertSalesReportSchema,
     tableName: 'Sales Report'
   });
   

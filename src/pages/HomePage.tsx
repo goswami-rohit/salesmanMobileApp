@@ -152,7 +152,7 @@ export default function HomePage() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <AppHeader title="Mission Control" />
+      <AppHeader title="Home Page" />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, { paddingTop: 16 }]}
@@ -194,14 +194,14 @@ export default function HomePage() {
         <View style={styles.pjpSection}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>
-              Today's Missions
+              Today's PJPs
             </Text>
             <IconButton
               icon="plus"
               onPress={handleCreatePJP}
               size={24}
               iconColor={theme.colors.primary}
-              style={[styles.pjpPlusButton, { backgroundColor: theme.colors.surfaceVariant }]}
+              style={[styles.pjpPlusButton, { backgroundColor: theme.colors.inverseSurface }]}
             />
           </View>
 
@@ -238,14 +238,6 @@ export default function HomePage() {
           )}
         </View>
       </ScrollView>
-
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        onPress={handleCreatePJP}
-      >
-        <MaterialCommunityIcons name="plus" size={28} color={theme.colors.onPrimary} />
-      </TouchableOpacity>
 
       {/* Attendance Modals */}
       <Portal>

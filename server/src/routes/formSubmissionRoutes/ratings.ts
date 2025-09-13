@@ -3,16 +3,16 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { ratings } from '../../db/schema';
+import { ratings, insertRatingSchema } from '../../db/schema';
 import { z } from 'zod';
 
 // Manual Zod schema EXACTLY matching the table schema
-const ratingSchema = z.object({
-  userId: z.number().int().positive(),
-  area: z.string().min(1),
-  region: z.string().min(1),
-  rating: z.number().int().min(1).max(5),
-});
+// const ratingSchema = z.object({
+//   userId: z.number().int().positive(),
+//   area: z.string().min(1),
+//   region: z.string().min(1),
+//   rating: z.number().int().min(1).max(5),
+// });
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -71,7 +71,7 @@ export default function setupRatingsPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'ratings',
     table: ratings,
-    schema: ratingSchema,
+    schema: insertRatingSchema,
     tableName: 'Rating'
   });
   

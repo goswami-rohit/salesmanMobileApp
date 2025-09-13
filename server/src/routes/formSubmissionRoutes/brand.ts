@@ -3,13 +3,13 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { brands } from '../../db/schema';
+import { brands, insertBrandSchema } from '../../db/schema';
 import { z } from 'zod';
 
 // Input validation schema
-export const insertBrandSchema = z.object({
-  name: z.string().min(1, 'Brand name is required'),
-});
+// export const insertBrandSchema = z.object({
+//   name: z.string().min(1, 'Brand name is required'),
+// });
 
 function createAutoCRUD(
   app: Express,

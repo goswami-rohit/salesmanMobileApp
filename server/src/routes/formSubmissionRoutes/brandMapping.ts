@@ -1,14 +1,14 @@
 // server/src/routes/postRoutes/dealerBrandMapping.ts
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dealerBrandMapping } from '../../db/schema';
+import { dealerBrandMapping, insertDealerBrandMappingSchema } from '../../db/schema';
 import { z } from 'zod';
 
-const insertDealerBrandMappingSchema = z.object({
-  dealerId: z.string().min(1, 'Dealer ID is required'),
-  brandId: z.preprocess((v) => (typeof v === 'string' ? Number(v) : v), z.number().int('Brand ID must be an integer')),
-  capacityMT: z.preprocess((v) => (typeof v === 'string' ? Number(v) : v), z.number().positive('Capacity must be greater than zero')),
-});
+// const insertDealerBrandMappingSchema = z.object({
+//   dealerId: z.string().min(1, 'Dealer ID is required'),
+//   brandId: z.preprocess((v) => (typeof v === 'string' ? Number(v) : v), z.number().int('Brand ID must be an integer')),
+//   capacityMT: z.preprocess((v) => (typeof v === 'string' ? Number(v) : v), z.number().positive('Capacity must be greater than zero')),
+// });
 
 function createAutoCRUD(
   app: Express,

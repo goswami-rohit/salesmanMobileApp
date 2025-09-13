@@ -2,20 +2,20 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dealerReportsAndScores } from '../../db/schema';
+import { dealerReportsAndScores, insertDealerReportsAndScoresSchema } from '../../db/schema';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
 // Manual Zod schema EXACTLY matching the table schema
-const dealerReportsAndScoresSchema = z.object({
-  dealerId: z.string().max(255),
-  dealerScore: z.string(),
-  trustWorthinessScore: z.string(),
-  creditWorthinessScore: z.string(),
-  orderHistoryScore: z.string(),
-  visitFrequencyScore: z.string(),
-  lastUpdatedDate: z.string().or(z.date()),
-});
+// const dealerReportsAndScoresSchema = z.object({
+//   dealerId: z.string().max(255),
+//   dealerScore: z.string(),
+//   trustWorthinessScore: z.string(),
+//   creditWorthinessScore: z.string(),
+//   orderHistoryScore: z.string(),
+//   visitFrequencyScore: z.string(),
+//   lastUpdatedDate: z.string().or(z.date()),
+// });
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -77,7 +77,7 @@ export default function setupDealerReportsAndScoresPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'dealer-reports-scores',
     table: dealerReportsAndScores,
-    schema: dealerReportsAndScoresSchema,
+    schema: insertDealerReportsAndScoresSchema,
     tableName: 'Dealer Reports and Scores',
     autoFields: {
       createdAt: () => new Date(),

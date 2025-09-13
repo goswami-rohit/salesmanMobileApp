@@ -3,20 +3,20 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { ddp } from '../../db/schema';
+import { ddp, insertDdpSchema } from '../../db/schema';
 import { z } from 'zod';
 
 // Manual Zod schema EXACTLY matching the table schema
-const ddpSchema = z.object({
-  userId: z.number().int().positive(),
-  dealerId: z.string().max(255).min(1),
-  creationDate: z.string().or(z.date()),
-  status: z.string().min(1),
-  obstacle: z.string().optional().nullable().or(z.literal("")),
-}).transform((data) => ({
-  ...data,
-  obstacle: data.obstacle === "" ? null : data.obstacle,
-}));
+// const ddpSchema = z.object({
+//   userId: z.number().int().positive(),
+//   dealerId: z.string().max(255).min(1),
+//   creationDate: z.string().or(z.date()),
+//   status: z.string().min(1),
+//   obstacle: z.string().optional().nullable().or(z.literal("")),
+// }).transform((data) => ({
+//   ...data,
+//   obstacle: data.obstacle === "" ? null : data.obstacle,
+//}));
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -80,7 +80,7 @@ export default function setupDdpPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'ddp',
     table: ddp,
-    schema: ddpSchema,
+    schema: insertDdpSchema,
     tableName: 'Dealer Development Process'
   });
   

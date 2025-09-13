@@ -472,4 +472,4 @@ export const insertRatingSchema = createInsertSchema(ratings);
 export const insertSalesOrderSchema = createInsertSchema(salesOrders);
 export const insertBrandSchema = createInsertSchema(brands);
 export const insertDealerBrandMappingSchema = createInsertSchema(dealerBrandMapping);
-export const insertMasterConnectedTableSchema = createInsertSchema(masterConnectedTable);
+export const insertMasterConnectedTableSchema = createInsertSchema(masterConnectedTable); 

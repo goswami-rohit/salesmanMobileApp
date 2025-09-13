@@ -235,6 +235,7 @@ export const DEALER_TYPES = ["Dealer-Best", "Sub Dealer-Best", "Dealer-Non Best"
 export const BRANDS = ["Star", "Amrit", "Dalmia", "Topcem", "Black Tiger", "Surya Gold", "Max", "Taj", "Specify in remarks"];
 export const UNITS = ["MT", "KG", "Bags"] as const;
 export const FEEDBACKS = ["Interested", "Not Interested", "Follow-up Required"];
+export const LEAVE_TYPE = ["Sick Leave", "Medical Leave", "Family/Friends Emergency", "Personal Leave", "Bad Weather Situation", "Local Festival", "State Holiday", "Other-Specify In Reason"];
 
 // Dynamically fetch area and regions of dealers/sub dealers from NEON
 type Dealer = {

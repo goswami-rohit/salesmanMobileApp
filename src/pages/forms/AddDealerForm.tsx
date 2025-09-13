@@ -1,5 +1,4 @@
-// src/pages/forms/AddDealer.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
   View,
@@ -7,6 +6,7 @@ import {
   Platform,
   Alert,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { SubmitHandler, Resolver } from 'react-hook-form';
@@ -17,31 +17,39 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import RNPickerSelect from 'react-native-picker-select';
-import * as Location from 'expo-location'; // <-- Changed to expo-location
-import Geolocation from 'react-native-geolocation-service';
+import * as Location from 'expo-location';
 
 import { useAppStore, DEALER_TYPES, BRANDS, FEEDBACKS, BASE_URL } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
 import Toast from 'react-native-toast-message';
 
-// --- Zod Schema ---
+// --- Zod Schema to match the database table ---
 const DealerSchema = z.object({
   userId: z.number(),
   type: z.string().min(1, "Dealer type is required"),
   isSubDealer: z.boolean(),
-  parentDealerId: z.string().optional(),
+  parentDealerId: z.string().optional().nullable(),
   name: z.string().min(3, "Name must be at least 3 characters"),
   region: z.string().min(1, "Region is required"),
   area: z.string().min(2, "Area is required"),
   phoneNo: z.string().regex(/^\d{10}$/, "Must be a valid 10-digit phone number"),
   address: z.string().min(10, "Address must be at least 10 characters"),
-  totalPotential: z.coerce.number().positive("Must be a positive number"),
-  bestPotential: z.coerce.number().positive("Must be a positive number"),
+  pinCode: z.string().optional().nullable().refine(val => !val || /^\d{6}$/.test(val), {
+    message: "Must be a 6-digit PIN code",
+  }),
+  latitude: z.coerce.number().optional().nullable(),
+  longitude: z.coerce.number().optional().nullable(),
+  dateOfBirth: z.string().optional().nullable().refine(val => !val || /^\d{4}-\d{2}-\d{2}$/.test(val), {
+    message: "Date must be in YYYY-MM-DD format",
+  }),
+  anniversaryDate: z.string().optional().nullable().refine(val => !val || /^\d{4}-\d{2}-\d{2}$/.test(val), {
+    message: "Date must be in YYYY-MM-DD format",
+  }),
+  totalPotential: z.coerce.number().min(0, "Must be a non-negative number"),
+  bestPotential: z.coerce.number().min(0, "Must be a non-negative number"),
   brandSelling: z.array(z.string()).min(1, "Select at least one brand"),
   feedbacks: z.string().min(1, "Feedback is required"),
   remarks: z.string().optional(),
-  latitude: z.coerce.number().optional().nullable(),
-  longitude: z.coerce.number().optional().nullable(),
 }).refine(data => !data.isSubDealer || (data.isSubDealer && data.parentDealerId), {
   message: "Parent dealer is required for sub-dealers",
   path: ["parentDealerId"],
@@ -51,11 +59,15 @@ type DealerFormValues = z.infer<typeof DealerSchema>;
 
 export default function AddDealerForm() {
   const navigation = useNavigation();
-  const { user, dealers } = useAppStore();
+  const { user } = useAppStore();
   const theme = useTheme();
 
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [brandsModalVisible, setBrandsModalVisible] = useState(false);
+  const [dealersData, setDealersData] = useState<any[]>([]);
+  const [isDealersLoading, setIsDealersLoading] = useState(true);
+  const [dealerModalVisible, setDealerModalVisible] = useState(false);
+  const [dealerSearchQuery, setDealerSearchQuery] = useState('');
 
   const { control, handleSubmit, setValue, watch, formState: { errors, isSubmitting, isValid } } = useForm<DealerFormValues>({
     resolver: zodResolver(DealerSchema) as unknown as Resolver<DealerFormValues, any>,
@@ -64,26 +76,56 @@ export default function AddDealerForm() {
       userId: user?.id ?? 0,
       type: '',
       isSubDealer: false,
-      parentDealerId: '',
+      parentDealerId: null,
       name: '',
       region: '',
       area: '',
       phoneNo: '',
       address: '',
+      pinCode: null,
+      latitude: null,
+      longitude: null,
+      dateOfBirth: null,
+      anniversaryDate: null,
       totalPotential: 0,
       bestPotential: 0,
       brandSelling: [] as string[],
       feedbacks: '',
       remarks: '',
-      latitude: null,
-      longitude: null,
     },
   });
 
   const isSubDealer = watch('isSubDealer');
   const brandSelling = watch('brandSelling');
+  const parentDealerId = watch('parentDealerId');
 
-  // FIX: Switched to expo-location for consistent behavior and crash prevention
+  const selectedParentDealerName = dealersData.find(d => d.id === parentDealerId)?.name || '';
+
+  const filteredDealers = dealersData.filter(d =>
+    d.name.toLowerCase().includes(dealerSearchQuery.toLowerCase())
+  );
+
+  useEffect(() => {
+    const fetchDealers = async () => {
+      try {
+        setIsDealersLoading(true);
+        const response = await fetch(`${BASE_URL}/api/dealers`);
+        const result = await response.json();
+        if (response.ok && result.success) {
+          setDealersData(result.data);
+        } else {
+          Alert.alert('Error', 'Failed to load dealers.');
+        }
+      } catch (err) {
+        Alert.alert('Error', 'Failed to fetch dealers.');
+      } finally {
+        setIsDealersLoading(false);
+      }
+    };
+    fetchDealers();
+  }, [user?.id]);
+
+
   const useMyLocation = async () => {
     setIsLoadingLocation(true);
     try {
@@ -97,7 +139,6 @@ export default function AddDealerForm() {
       }
       const position = await Location.getCurrentPositionAsync({});
 
-      // FIX: setValue with the numeric value directly
       setValue('latitude', position.coords.latitude, { shouldValidate: true });
       setValue('longitude', position.coords.longitude, { shouldValidate: true });
       Toast.show({ type: 'success', text1: 'Location Captured' });
@@ -112,8 +153,24 @@ export default function AddDealerForm() {
   const submit: SubmitHandler<DealerFormValues> = async (values) => {
     try {
       const payload = {
-        ...values,
-        parentDealerId: values.isSubDealer ? values.parentDealerId : null,
+        userId: values.userId,
+        type: values.type,
+        parentDealerId: values.isSubDealer ? values.parentDealerId || null : null,
+        name: values.name,
+        region: values.region,
+        area: values.area,
+        phoneNo: values.phoneNo,
+        address: values.address,
+        pinCode: values.pinCode || null,
+        latitude: values.latitude !== null && values.latitude !== undefined ? String(values.latitude) : null,
+        longitude: values.longitude !== null && values.longitude !== undefined ? String(values.longitude) : null,
+        dateOfBirth: values.dateOfBirth || null,
+        anniversaryDate: values.anniversaryDate || null,
+        totalPotential: String(values.totalPotential),
+        bestPotential: String(values.bestPotential),
+        brandSelling: values.brandSelling,
+        feedbacks: values.feedbacks,
+        remarks: values.remarks || null,
       };
 
       const response = await fetch(`${BASE_URL}/api/dealers`, {
@@ -141,6 +198,7 @@ export default function AddDealerForm() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['right', 'bottom', 'left']}>
       <AppHeader title="Add New Dealer" />
       <Portal>
+        {/* Brands Modal */}
         <Modal visible={brandsModalVisible} onDismiss={() => setBrandsModalVisible(false)} contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
           <Text variant="titleLarge" style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Select Brands</Text>
           <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingBottom: 8 }}>
@@ -162,6 +220,43 @@ export default function AddDealerForm() {
           </ScrollView>
           <Button mode="contained" onPress={() => setBrandsModalVisible(false)} style={styles.doneButton}>Done</Button>
         </Modal>
+
+        {/* Dealer Selection Modal for Parent Dealer */}
+        <Modal visible={dealerModalVisible} onDismiss={() => setDealerModalVisible(false)} contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
+          <Text variant="titleLarge" style={styles.modalTitle}>Select Parent Dealer</Text>
+          <TextInput
+            label="Search"
+            value={dealerSearchQuery}
+            onChangeText={setDealerSearchQuery}
+            mode="outlined"
+            right={<TextInput.Icon icon="magnify" />}
+            style={styles.searchBar}
+          />
+          {isDealersLoading ? (
+            <ActivityIndicator style={styles.loadingIndicator} />
+          ) : (
+            <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              {filteredDealers.length > 0 ? (
+                filteredDealers.map(d => (
+                  <TouchableOpacity
+                    key={d.id}
+                    onPress={() => {
+                      setValue('parentDealerId', d.id, { shouldValidate: true });
+                      setDealerModalVisible(false);
+                      setDealerSearchQuery('');
+                    }}
+                    style={styles.dealerListItem}
+                  >
+                    <Text style={styles.dealerListItemText}>{d.name}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={styles.noResultsText}>No dealers found.</Text>
+              )}
+            </ScrollView>
+          )}
+          <Button mode="contained" onPress={() => setDealerModalVisible(false)} style={styles.doneButton}>Done</Button>
+        </Modal>
       </Portal>
 
       <ScrollView contentContainerStyle={styles.formWrapper} keyboardShouldPersistTaps="handled">
@@ -176,19 +271,18 @@ export default function AddDealerForm() {
         )} />
 
         {isSubDealer && (
-          <Controller control={control} name="parentDealerId" render={({ field: { onChange, value } }) => (
+          <Controller control={control} name="parentDealerId" render={({ field: { value } }) => (
             <View style={styles.field}>
-              <View style={[styles.pickerWrapper, { backgroundColor: theme.colors.surface, borderColor: errors.parentDealerId ? theme.colors.error : theme.colors.outlineVariant }]}>
-                <RNPickerSelect
-                  onValueChange={onChange}
-                  value={value}
-                  items={dealers.map(d => ({ label: d.name, value: String(d.id) }))}
-                  placeholder={{ label: "Select Parent Dealer *", value: null }}
-                  style={pickerSelectStyles(theme)}
-                  useNativeAndroidPickerStyle={false}
-                  Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+              <TouchableOpacity onPress={() => setDealerModalVisible(true)} activeOpacity={0.7}>
+                <TextInput
+                  label="Select Parent Dealer *"
+                  value={selectedParentDealerName}
+                  editable={false}
+                  mode="outlined"
+                  right={<TextInput.Icon icon="chevron-down" />}
+                  error={!!errors.parentDealerId}
                 />
-              </View>
+              </TouchableOpacity>
               {errors.parentDealerId && <HelperText type="error">{errors.parentDealerId.message}</HelperText>}
             </View>
           )} />
@@ -247,7 +341,13 @@ export default function AddDealerForm() {
           </View>
         )} />
 
-        {/* Geolocation */}
+        <Controller control={control} name="pinCode" render={({ field: { onChange, onBlur, value } }) => (
+          <View style={styles.field}>
+            <TextInput label="PIN Code" value={value || ''} onChangeText={onChange} onBlur={onBlur} error={!!errors.pinCode} keyboardType="numeric" mode="outlined" />
+            {errors.pinCode && <HelperText type="error">{errors.pinCode.message}</HelperText>}
+          </View>
+        )} />
+
         <View style={styles.row}>
           <Controller control={control} name="latitude" render={({ field: { value } }) => (
             <TextInput label="Latitude" value={value !== null && value !== undefined ? String(value) : ''} editable={false} style={styles.flexInput} mode="outlined" />
@@ -261,13 +361,28 @@ export default function AddDealerForm() {
         </Button>
 
         <View style={styles.row}>
+          <Controller control={control} name="dateOfBirth" render={({ field: { onChange, onBlur, value } }) => (
+            <View style={styles.halfField}>
+              <TextInput label="Date of Birth (YYYY-MM-DD)" value={value || ''} onChangeText={onChange} onBlur={onBlur} error={!!errors.dateOfBirth} mode="outlined" />
+              {errors.dateOfBirth && <HelperText type="error">{errors.dateOfBirth.message}</HelperText>}
+            </View>
+          )} />
+          <Controller control={control} name="anniversaryDate" render={({ field: { onChange, onBlur, value } }) => (
+            <View style={styles.halfField}>
+              <TextInput label="Anniversary Date (YYYY-MM-DD)" value={value || ''} onChangeText={onChange} onBlur={onBlur} error={!!errors.anniversaryDate} mode="outlined" />
+              {errors.anniversaryDate && <HelperText type="error">{errors.anniversaryDate.message}</HelperText>}
+            </View>
+          )} />
+        </View>
+
+        <View style={styles.row}>
           <Controller control={control} name="totalPotential" render={({ field: { onChange, onBlur, value } }) => (
             <View style={styles.halfField}>
               <TextInput
                 label="Total Potential *"
                 value={value !== undefined && value !== null ? String(value) : ''}
                 onChangeText={(text) => {
-                  const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
+                  const num = parseFloat(text.replace(/[^0-9.]/g, ''));
                   onChange(isNaN(num) ? undefined : num);
                 }}
                 onBlur={onBlur}
@@ -284,7 +399,7 @@ export default function AddDealerForm() {
                 label="Best Potential *"
                 value={value !== undefined && value !== null ? String(value) : ''}
                 onChangeText={(text) => {
-                  const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
+                  const num = parseFloat(text.replace(/[^0-9.]/g, ''));
                   onChange(isNaN(num) ? undefined : num);
                 }}
                 onBlur={onBlur}
@@ -401,6 +516,27 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: 8,
+  },
+  searchBar: {
+    marginBottom: 12,
+  },
+  loadingIndicator: {
+    paddingVertical: 20,
+  },
+  dealerListItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#6b7280',
+  },
+  dealerListItemText: {
+    fontSize: 16,
+    color: '#e5e7eb',
+  },
+  noResultsText: {
+    textAlign: 'center',
+    marginTop: 20,
+    color: '#9ca3af',
   },
 });
 

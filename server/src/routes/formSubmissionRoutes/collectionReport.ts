@@ -3,21 +3,21 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { collectionReports } from '../../db/schema';
+import { collectionReports, insertCollectionReportSchema } from '../../db/schema';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
 // Manual Zod schema matching the exact table schema
-const collectionReportSchema = z.object({
-  dvrId: z.string(),
-  dealerId: z.string(),
-  collectedAmount: z.string(),
-  collectedOnDate: z.string().or(z.date()),
-  weeklyTarget: z.string().optional(),
-  tillDateAchievement: z.string().optional(),
-  yesterdayTarget: z.string().optional(),
-  yesterdayAchievement: z.string().optional(),
-});
+// const collectionReportSchema = z.object({
+//   dvrId: z.string(),
+//   dealerId: z.string(),
+//   collectedAmount: z.string(),
+//   collectedOnDate: z.string().or(z.date()),
+//   weeklyTarget: z.string().optional(),
+//   tillDateAchievement: z.string().optional(),
+//   yesterdayTarget: z.string().optional(),
+//   yesterdayAchievement: z.string().optional(),
+// });
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -80,7 +80,7 @@ export default function setupCollectionReportsPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'collection-reports',
     table: collectionReports,
-    schema: collectionReportSchema,
+    schema: insertCollectionReportSchema,
     tableName: 'Collection Report',
     autoFields: {
       createdAt: () => new Date(),

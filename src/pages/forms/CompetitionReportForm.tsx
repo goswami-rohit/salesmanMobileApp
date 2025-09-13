@@ -1,4 +1,3 @@
-// src/pages/forms/CompetitionReportForm.tsx
 import React, { useState } from 'react';
 import { ScrollView, View, TouchableOpacity, Platform, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,6 +72,8 @@ export default function CompetitionReportForm() {
         ...values,
         reportDate: format(values.reportDate, 'yyyy-MM-dd'),
         remarks: values.remarks || null,
+        // Convert the number back to a string to match the backend schema
+        avgSchemeCost: String(values.avgSchemeCost),
       };
 
       const response = await fetch(`${BASE_URL}/api/competition-reports`, {
@@ -85,6 +86,7 @@ export default function CompetitionReportForm() {
       if (!response.ok) throw new Error(result.error || 'Failed to submit report');
 
       Toast.show({ type: 'success', text1: 'Report Submitted', text2: 'Competition report has been saved.' });
+      // @ts-ignore
       navigation.goBack();
     } catch (error: any) {
       Alert.alert('Submission Failed', error.message);

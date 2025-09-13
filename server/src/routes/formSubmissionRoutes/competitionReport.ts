@@ -3,22 +3,22 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { competitionReports } from '../../db/schema';
+import { competitionReports, insertCompetitionReportSchema } from '../../db/schema';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
 // Manual Zod schema matching the exact table schema
-const competitionReportSchema = z.object({
-  userId: z.number(),
-  reportDate: z.string().or(z.date()),
-  brandName: z.string(),
-  billing: z.string(),
-  nod: z.string(),
-  retail: z.string(),
-  schemesYesNo: z.string(),
-  avgSchemeCost: z.string(),
-  remarks: z.string().optional(),
-});
+// const competitionReportSchema = z.object({
+//   userId: z.number(),
+//   reportDate: z.string().or(z.date()),
+//   brandName: z.string(),
+//   billing: z.string(),
+//   nod: z.string(),
+//   retail: z.string(),
+//   schemesYesNo: z.string(),
+//   avgSchemeCost: z.string(),
+//   remarks: z.string().optional(),
+// });
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -81,7 +81,7 @@ export default function setupCompetitionReportsPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'competition-reports',
     table: competitionReports,
-    schema: competitionReportSchema,
+    schema: insertCompetitionReportSchema,
     tableName: 'Competition Report',
     autoFields: {
       createdAt: () => new Date(),

@@ -1,33 +1,33 @@
 // server/src/routes/postRoutes/dealers.ts
-// Dealers POST endpoints using createAutoCRUD pattern
+// Dealers POST endpoints using createAutoCRUD patterns
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { dealers } from '../../db/schema';
+import { dealers, insertDealerSchema } from '../../db/schema';
 import { z } from 'zod';
 import { InferInsertModel } from 'drizzle-orm';
 
 // --- Define input schema with Zod (loosely typed to avoid infinite inference) ---
-export const insertDealerSchema = z.object({
-  userId: z.number().optional(),
-  type: z.string().min(1),
-  parentDealerId: z.string().optional().nullable(),
-  name: z.string().min(1),
-  region: z.string().min(1),
-  area: z.string().min(1),
-  phoneNo: z.string().min(1),
-  address: z.string().min(1),
-  pinCode: z.string().optional().nullable(),
-  latitude: z.number().optional().nullable(),
-  longitude: z.number().optional().nullable(),
-  dateOfBirth: z.string().optional().nullable(),
-  anniversaryDate: z.string().optional().nullable(),
-  totalPotential: z.number(),
-  bestPotential: z.number(),
-  brandSelling: z.array(z.string()),
-  feedbacks: z.string().min(1),
-  remarks: z.string().optional().nullable(),
-});
+// export const insertDealerSchema = z.object({
+//   userId: z.number().optional(),
+//   type: z.string().min(1),
+//   parentDealerId: z.string().optional().nullable(),
+//   name: z.string().min(1),
+//   region: z.string().min(1),
+//   area: z.string().min(1),
+//   phoneNo: z.string().min(1),
+//   address: z.string().min(1),
+//   pinCode: z.string().optional().nullable(),
+//   latitude: z.number().optional().nullable(),
+//   longitude: z.number().optional().nullable(),
+//   dateOfBirth: z.string().optional().nullable(),
+//   anniversaryDate: z.string().optional().nullable(),
+//   totalPotential: z.number(),
+//   bestPotential: z.number(),
+//   brandSelling: z.array(z.string()),
+//   feedbacks: z.string().min(1),
+//   remarks: z.string().optional().nullable(),
+// });
 
 // Type for insert payload
 type DealerInsert = InferInsertModel<typeof dealers>;
@@ -91,8 +91,8 @@ export default function setupDealersPostRoutes(app: Express) {
     schema: insertDealerSchema,
     tableName: 'Dealer',
     autoFields: {
-      createdAt: () => new Date().toISOString(),
-      updatedAt: () => new Date().toISOString(),
+      createdAt: () => new Date(),
+      updatedAt: () => new Date(),
     },
   });
 

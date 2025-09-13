@@ -3,7 +3,7 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { permanentJourneyPlans } from '../../db/schema';
+import { permanentJourneyPlans, insertPermanentJourneyPlanSchema } from '../../db/schema';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
@@ -80,7 +80,7 @@ export default function setupPermanentJourneyPlansPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'pjp',
     table: permanentJourneyPlans,
-    schema: permanentJourneyPlanSchema,
+    schema: insertPermanentJourneyPlanSchema,
     tableName: 'Permanent Journey Plan',
     autoFields: {
       createdAt: () => new Date(),

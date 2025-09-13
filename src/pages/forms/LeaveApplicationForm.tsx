@@ -1,22 +1,22 @@
-// src/pages/forms/LeaveApplicationForm.tsx
 import React, { useState } from 'react';
 import { View, ScrollView, TouchableOpacity, Platform, Alert, StyleSheet } from 'react-native';
 import { Text, Button, TextInput, HelperText, useTheme } from 'react-native-paper';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { BASE_URL } from '../../components/ReusableConstants';
+import RNPickerSelect from 'react-native-picker-select';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { BASE_URL, LEAVE_TYPE, useAppStore } from '../../components/ReusableConstants';
+import AppHeader from '../../components/AppHeader';
 
-// --- Schema (Corrected) ---
+// --- Schema (Updated to only validate user input fields) ---
 const LeaveSchema = z.object({
-  userId: z.number().int().positive(),
   leaveType: z.string().min(1, "Leave type is required"),
   startDate: z.date(),
   endDate: z.date(),
   reason: z.string().min(5, "Please provide a brief reason"),
-  status: z.literal("pending").optional(),
 }).refine((data) => data.endDate >= data.startDate, {
   message: "End date cannot be earlier than start date",
   path: ["endDate"],
@@ -26,14 +26,14 @@ export type LeaveFormValues = z.infer<typeof LeaveSchema>;
 
 // --- Props ---
 interface Props {
-  userId?: number | null;
   onSubmitted?: (payload: LeaveFormValues) => void;
   onCancel?: () => void;
 }
 
 // --- Component ---
-export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: Props) {
+export default function LeaveApplicationForm({ onSubmitted, onCancel }: Props) {
   const theme = useTheme();
+  const { user } = useAppStore(); // Use the user object from the store
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [datePicker, setDatePicker] = useState({ visible: false, field: 'startDate' as 'startDate' | 'endDate' });
 
@@ -41,12 +41,10 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
     resolver: zodResolver(LeaveSchema),
     mode: 'onChange',
     defaultValues: {
-      userId: userId ?? 0,
       leaveType: '',
       startDate: new Date(),
       endDate: new Date(),
       reason: '',
-      status: 'pending',
     },
   });
 
@@ -75,11 +73,13 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
     setIsSubmitting(true);
     try {
       const leavePayload = {
+        userId: user?.id, // Add userId here, not in the form state
         ...values,
         startDate: values.startDate.toISOString().split('T')[0],
         endDate: values.endDate.toISOString().split('T')[0],
+        status: 'pending', // Add status here, as it's a fixed value
       };
-      
+
       const response = await fetch(`${BASE_URL}/api/leave-applications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,6 +103,8 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <AppHeader title="Leave Application" />
+
       <Text variant="headlineSmall" style={styles.headerTitle}>Request Time Off</Text>
       <Text variant="bodyMedium" style={styles.headerSubtitle}>Fill in the details for your leave request.</Text>
 
@@ -120,15 +122,19 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
       <Controller
         control={control}
         name="leaveType"
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, value } }) => (
           <View style={styles.inputContainer}>
-            <TextInput
-              label="Leave Type (e.g., Sick, Personal)"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              error={!!errors.leaveType}
-            />
+            <View style={[styles.pickerWrapper, { borderColor: errors.leaveType ? theme.colors.error : theme.colors.outline }]}>
+              <RNPickerSelect
+                onValueChange={onChange}
+                value={value}
+                items={LEAVE_TYPE.map(type => ({ label: type, value: type }))}
+                placeholder={{ label: "Select Leave Type *", value: "" }}
+                style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }}
+                useNativeAndroidPickerStyle={false}
+                Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />}
+              />
+            </View>
             {errors.leaveType && <HelperText type="error">{errors.leaveType.message}</HelperText>}
           </View>
         )}
@@ -182,7 +188,7 @@ export default function LeaveApplicationForm({ userId, onSubmitted, onCancel }: 
           </View>
         )}
       />
-      
+
       {/* Action Buttons */}
       <View style={styles.buttonRow}>
         <Button mode="outlined" onPress={onCancel} style={styles.button}>
@@ -235,5 +241,27 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 4,
     borderRadius: 8,
+  },
+  // New styles for the picker component
+  pickerWrapper: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4b5563',
+  },
+  pickerInput: {
+    fontSize: 16,
+    paddingVertical: 12,
+    paddingRight: 30,
+    color: 'white',
+  },
+  pickerPlaceholder: {
+    color: '#9ca3af',
+  },
+  pickerIcon: {
+    top: 15,
+    right: 15,
   },
 });

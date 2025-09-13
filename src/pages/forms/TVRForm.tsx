@@ -1,4 +1,3 @@
-// src/pages/forms/TVRForm.tsx
 import React, { useState, useEffect } from 'react';
 import { ScrollView, View, TouchableOpacity, Platform, Alert, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,36 +9,38 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import RNPickerSelect from 'react-native-picker-select';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location'; // <-- Changed to expo-location
 import Toast from 'react-native-toast-message';
 
 import { useAppStore, BASE_URL, BRANDS, INFLUENCERS, UNITS, QUALITY_COMPLAINT, PROMO_ACTIVITY, CHANNEL_PARTNER_VISIT } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
+import { format } from 'date-fns';
 
 // --- Type Definitions ---
 type Step = 'checkin' | 'form' | 'checkout' | 'loading';
 
-// --- Zod Schema ---
+// --- Zod Schema (Updated to match DB schema) ---
 const TVReportSchema = z.object({
-  userId: z.number(),
-  reportDate: z.string(),
+  userId: z.number().int().positive(),
+  reportDate: z.date(),
   visitType: z.string().min(1, "Visit type is required"),
   siteNameConcernedPerson: z.string().min(1, "Site/Person name is required"),
   phoneNo: z.string().regex(/^\d{10}$/, "Must be a valid 10-digit phone number"),
-  emailId: z.string().email("Must be a valid email").optional().or(z.literal('')),
+  emailId: z.string().email("Must be a valid email").optional().or(z.literal('')).nullable(),
   clientsRemarks: z.string().min(1, "Client remarks are required"),
   salespersonRemarks: z.string().min(1, "Your remarks are required"),
   siteVisitBrandInUse: z.string().array().min(1, "Select at least one brand"),
-  siteVisitStage: z.string().min(1, "Site visit stage is required"),
-  conversionFromBrand: z.string().min(1, "Conversion brand is required"),
-  conversionQuantityValue: z.coerce.number().positive(),
-  conversionQuantityUnit: z.string().min(1, "Unit is required"),
-  associatedPartyName: z.string().min(1, "Associated party is required"),
+  // These fields are nullable in the DB schema, so they should be optional here.
+  siteVisitStage: z.string().optional().nullable(),
+  conversionFromBrand: z.string().optional().nullable(),
+  // Use coerce to handle string to number conversion for optional fields
+  conversionQuantityValue: z.coerce.number().positive().optional().nullable(),
+  conversionQuantityUnit: z.string().optional().nullable(),
+  associatedPartyName: z.string().optional().nullable(),
   influencerType: z.string().array().min(1, "Select at least one influencer"),
-  serviceType: z.string().min(1, "Service type is required"),
-  qualityComplaint: z.string().min(1, "Quality complaint info is required"),
-  promotionalActivity: z.string().min(1, "Promotional activity is required"),
-  channelPartnerVisit: z.string().min(1, "Channel partner info is required"),
+  serviceType: z.string().optional().nullable(),
+  qualityComplaint: z.string().optional().nullable(),
+  promotionalActivity: z.string().optional().nullable(),
+  channelPartnerVisit: z.string().optional().nullable(),
 });
 type TVReportFormValues = z.infer<typeof TVReportSchema>;
 
@@ -60,7 +61,7 @@ export default function TVRForm() {
     mode: 'onChange',
     defaultValues: {
       userId: user?.id,
-      reportDate: new Date().toISOString().slice(0, 10),
+      reportDate: new Date(),
       siteVisitBrandInUse: [],
       influencerType: [],
     },
@@ -74,6 +75,7 @@ export default function TVRForm() {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Camera access is required.');
+        // @ts-ignore
         navigation.goBack();
         return;
       }
@@ -123,9 +125,15 @@ export default function TVRForm() {
       setStep('checkout');
       return;
     }
+    
+    // Convert date object to string for the payload
+    const payload = {
+      ...data,
+      reportDate: format(data.reportDate, 'yyyy-MM-dd'),
+    };
 
     const formData = new FormData();
-    Object.entries(data).forEach(([key, value]) => {
+    Object.entries(payload).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         formData.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value));
       }
@@ -144,6 +152,7 @@ export default function TVRForm() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to submit report.');
       Toast.show({ type: 'success', text1: 'TVR Submitted Successfully' });
+      // @ts-ignore
       navigation.goBack();
     } catch (error: any) {
       Alert.alert('Submission Failed', error.message);
@@ -172,12 +181,12 @@ export default function TVRForm() {
       <Portal>
         <Modal visible={modals.brands} onDismiss={() => setModals({ ...modals, brands: false })} contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
           <Text variant="titleLarge" style={styles.modalTitle}>Select Brands in Use</Text>
-          <ScrollView>{BRANDS.map(brand => <Checkbox.Item key={brand} label={brand} status={siteVisitBrandInUse.includes(brand) ? 'checked' : 'unchecked'} onPress={() => { const newBrands = siteVisitBrandInUse.includes(brand) ? siteVisitBrandInUse.filter(b => b !== brand) : [...siteVisitBrandInUse, brand]; setValue('siteVisitBrandInUse', newBrands, { shouldValidate: true }); }} labelStyle={styles.checkboxLabel} />)}</ScrollView>
+          <ScrollView>{BRANDS.map(brand => <Checkbox.Item key={brand} label={brand} status={siteVisitBrandInUse?.includes(brand) ? 'checked' : 'unchecked'} onPress={() => { const newBrands = siteVisitBrandInUse?.includes(brand) ? siteVisitBrandInUse.filter(b => b !== brand) : [...(siteVisitBrandInUse || []), brand]; setValue('siteVisitBrandInUse', newBrands, { shouldValidate: true }); }} labelStyle={styles.checkboxLabel} />)}</ScrollView>
           <Button onPress={() => setModals({ ...modals, brands: false })} style={styles.modalButton}>Done</Button>
         </Modal>
         <Modal visible={modals.influencers} onDismiss={() => setModals({ ...modals, influencers: false })} contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
           <Text variant="titleLarge" style={styles.modalTitle}>Select Influencer Type</Text>
-          <ScrollView>{INFLUENCERS.map(inf => <Checkbox.Item key={inf} label={inf} status={influencerType.includes(inf) ? 'checked' : 'unchecked'} onPress={() => { const newInfluencers = influencerType.includes(inf) ? influencerType.filter(i => i !== inf) : [...influencerType, inf]; setValue('influencerType', newInfluencers, { shouldValidate: true }); }} labelStyle={styles.checkboxLabel} />)}</ScrollView>
+          <ScrollView>{INFLUENCERS.map(inf => <Checkbox.Item key={inf} label={inf} status={influencerType?.includes(inf) ? 'checked' : 'unchecked'} onPress={() => { const newInfluencers = influencerType?.includes(inf) ? influencerType.filter(i => i !== inf) : [...(influencerType || []), inf]; setValue('influencerType', newInfluencers, { shouldValidate: true }); }} labelStyle={styles.checkboxLabel} />)}</ScrollView>
           <Button onPress={() => setModals({ ...modals, influencers: false })} style={styles.modalButton}>Done</Button>
         </Modal>
       </Portal>
@@ -189,34 +198,34 @@ export default function TVRForm() {
         <Controller name="visitType" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Visit Type *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.visitType} /><HelperText type="error">{errors.visitType?.message}</HelperText></View>)} />
         <Controller name="siteNameConcernedPerson" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Site Name / Concerned Person *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.siteNameConcernedPerson} /><HelperText type="error">{errors.siteNameConcernedPerson?.message}</HelperText></View>)} />
         <Controller name="phoneNo" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Phone No *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.phoneNo} keyboardType="phone-pad" /><HelperText type="error">{errors.phoneNo?.message}</HelperText></View>)} />
-        <Controller name="emailId" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Email ID" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.emailId} keyboardType="email-address" /><HelperText type="error">{errors.emailId?.message}</HelperText></View>)} />
+        <Controller name="emailId" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Email ID" value={value || ''} onChangeText={onChange} onBlur={onBlur} error={!!errors.emailId} keyboardType="email-address" /><HelperText type="error">{errors.emailId?.message}</HelperText></View>)} />
         <Controller name="clientsRemarks" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Client's Remarks *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.clientsRemarks} multiline /><HelperText type="error">{errors.clientsRemarks?.message}</HelperText></View>)} />
         <Controller name="salespersonRemarks" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Salesperson Remarks *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.salespersonRemarks} multiline /><HelperText type="error">{errors.salespersonRemarks?.message}</HelperText></View>)} />
 
         <TouchableOpacity onPress={() => setModals({ ...modals, brands: true })} style={styles.inputContainer}>
-          <TextInput label="Site Visit - Brand in Use *" editable={false} value={siteVisitBrandInUse.join(', ') || 'Select brands...'} error={!!errors.siteVisitBrandInUse} right={<TextInput.Icon icon="chevron-down" />} />
+          <TextInput label="Site Visit - Brand in Use *" editable={false} value={siteVisitBrandInUse?.join(', ') || 'Select brands...'} error={!!errors.siteVisitBrandInUse} right={<TextInput.Icon icon="chevron-down" />} />
           <HelperText type="error">{errors.siteVisitBrandInUse?.message}</HelperText>
         </TouchableOpacity>
 
-        <Controller name="siteVisitStage" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Site Visit - Stage *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.siteVisitStage} /><HelperText type="error">{errors.siteVisitStage?.message}</HelperText></View>)} />
+        <Controller name="siteVisitStage" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Site Visit - Stage (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} /><HelperText type="error">{errors.siteVisitStage?.message}</HelperText></View>)} />
 
         <View style={styles.row}>
-          <Controller control={control} name="conversionFromBrand" render={({ field: { onChange, value } }) => (<View style={styles.inputFlex}><View style={[styles.pickerWrapper, { borderColor: errors.conversionFromBrand ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={BRANDS.map(b => ({ label: b, value: b }))} placeholder={{ label: "From Brand *", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput }} /></View><HelperText type="error">{errors.conversionFromBrand?.message}</HelperText></View>)} />
-          <Controller name="conversionQuantityValue" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputFlex}><TextInput label="Qty *" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} error={!!errors.conversionQuantityValue} keyboardType="numeric" /><HelperText type="error">{errors.conversionQuantityValue?.message}</HelperText></View>)} />
+          <Controller control={control} name="conversionFromBrand" render={({ field: { onChange, value } }) => (<View style={styles.inputFlex}><View style={[styles.pickerWrapper, { borderColor: errors.conversionFromBrand ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={BRANDS.map(b => ({ label: b, value: b }))} placeholder={{ label: "From Brand (Optional)", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput }} /></View><HelperText type="error">{errors.conversionFromBrand?.message}</HelperText></View>)} />
+          <Controller name="conversionQuantityValue" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputFlex}><TextInput label="Qty (Optional)" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text))} onBlur={onBlur} keyboardType="numeric" /><HelperText type="error">{errors.conversionQuantityValue?.message}</HelperText></View>)} />
           <Controller control={control} name="conversionQuantityUnit" render={({ field: { onChange, value } }) => (<View style={styles.pickerUnit}><View style={[styles.pickerWrapper, { borderColor: errors.conversionQuantityUnit ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={UNITS.map(u => ({ label: u, value: u }))} placeholder={{ label: "Unit", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput }} /></View><HelperText type="error">{errors.conversionQuantityUnit?.message}</HelperText></View>)} />
         </View>
 
-        <Controller name="associatedPartyName" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Associated Party Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.associatedPartyName} /><HelperText type="error">{errors.associatedPartyName?.message}</HelperText></View>)} />
+        <Controller name="associatedPartyName" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Associated Party Name (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} /><HelperText type="error">{errors.associatedPartyName?.message}</HelperText></View>)} />
 
         <TouchableOpacity onPress={() => setModals({ ...modals, influencers: true })} style={styles.inputContainer}>
-          <TextInput label="Influencer Type *" editable={false} value={influencerType.join(', ') || 'Select influencers...'} error={!!errors.influencerType} right={<TextInput.Icon icon="chevron-down" />} />
+          <TextInput label="Influencer Type *" editable={false} value={influencerType?.join(', ') || 'Select influencers...'} error={!!errors.influencerType} right={<TextInput.Icon icon="chevron-down" />} />
           <HelperText type="error">{errors.influencerType?.message}</HelperText>
         </TouchableOpacity>
 
-        <Controller name="serviceType" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Service Type *" value={value} onChangeText={onChange} onBlur={onBlur} error={!!errors.serviceType} /><HelperText type="error">{errors.serviceType?.message}</HelperText></View>)} />
-        <Controller control={control} name="qualityComplaint" render={({ field: { onChange, value } }) => (<View style={styles.inputContainer}><View style={[styles.pickerWrapper, { borderColor: errors.qualityComplaint ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={QUALITY_COMPLAINT.map(v => ({ label: v, value: v }))} placeholder={{ label: "Quality Complaint *", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />} /></View><HelperText type="error">{errors.qualityComplaint?.message}</HelperText></View>)} />
-        <Controller control={control} name="promotionalActivity" render={({ field: { onChange, value } }) => (<View style={styles.inputContainer}><View style={[styles.pickerWrapper, { borderColor: errors.promotionalActivity ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={PROMO_ACTIVITY.map(v => ({ label: v, value: v }))} placeholder={{ label: "Promotional Activity *", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />} /></View><HelperText type="error">{errors.promotionalActivity?.message}</HelperText></View>)} />
-        <Controller control={control} name="channelPartnerVisit" render={({ field: { onChange, value } }) => (<View style={styles.inputContainer}><View style={[styles.pickerWrapper, { borderColor: errors.channelPartnerVisit ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={CHANNEL_PARTNER_VISIT.map(v => ({ label: v, value: v }))} placeholder={{ label: "Channel Partner Visit *", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />} /></View><HelperText type="error">{errors.channelPartnerVisit?.message}</HelperText></View>)} />
+        <Controller name="serviceType" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputContainer}><TextInput label="Service Type (Optional)" value={value || ''} onChangeText={onChange} onBlur={onBlur} /><HelperText type="error">{errors.serviceType?.message}</HelperText></View>)} />
+        <Controller control={control} name="qualityComplaint" render={({ field: { onChange, value } }) => (<View style={styles.inputContainer}><View style={[styles.pickerWrapper, { borderColor: errors.qualityComplaint ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={QUALITY_COMPLAINT.map(v => ({ label: v, value: v }))} placeholder={{ label: "Quality Complaint (Optional)", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />} /></View><HelperText type="error">{errors.qualityComplaint?.message}</HelperText></View>)} />
+        <Controller control={control} name="promotionalActivity" render={({ field: { onChange, value } }) => (<View style={styles.inputContainer}><View style={[styles.pickerWrapper, { borderColor: errors.promotionalActivity ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={PROMO_ACTIVITY.map(v => ({ label: v, value: v }))} placeholder={{ label: "Promotional Activity (Optional)", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />} /></View><HelperText type="error">{errors.promotionalActivity?.message}</HelperText></View>)} />
+        <Controller control={control} name="channelPartnerVisit" render={({ field: { onChange, value } }) => (<View style={styles.inputContainer}><View style={[styles.pickerWrapper, { borderColor: errors.channelPartnerVisit ? theme.colors.error : theme.colors.outline }]}><RNPickerSelect onValueChange={onChange} value={value} items={CHANNEL_PARTNER_VISIT.map(v => ({ label: v, value: v }))} placeholder={{ label: "Channel Partner Visit (Optional)", value: null }} style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }} useNativeAndroidPickerStyle={false} Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />} /></View><HelperText type="error">{errors.channelPartnerVisit?.message}</HelperText></View>)} />
 
         <Button mode="contained" onPress={handleProceedToCheckout} style={styles.button}>Continue to Checkout</Button>
       </ScrollView>

@@ -3,29 +3,29 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { clientReports } from '../../db/schema';
+import { clientReports, insertClientReportSchema } from '../../db/schema';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
 // Manual Zod schema matching the exact table schema
-const clientReportSchema = z.object({
-  dealerType: z.string(),
-  dealerSubDealerName: z.string(),
-  location: z.string(),
-  typeBestNonBest: z.string(),
-  dealerTotalPotential: z.string(),
-  dealerBestPotential: z.string(),
-  brandSelling: z.array(z.string()),
-  contactPerson: z.string(),
-  contactPersonPhoneNo: z.string(),
-  todayOrderMT: z.string(),
-  todayCollection: z.string(),
-  feedbacks: z.string(),
-  solutionsAsPerSalesperson: z.string(),
-  anyRemarks: z.string(),
-  checkOutTime: z.string().or(z.date()),
-  userId: z.number(),
-});
+// const clientReportSchema = z.object({
+//   dealerType: z.string(),
+//   dealerSubDealerName: z.string(),
+//   location: z.string(),
+//   typeBestNonBest: z.string(),
+//   dealerTotalPotential: z.string(),
+//   dealerBestPotential: z.string(),
+//   brandSelling: z.array(z.string()),
+//   contactPerson: z.string(),
+//   contactPersonPhoneNo: z.string(),
+//   todayOrderMT: z.string(),
+//   todayCollection: z.string(),
+//   feedbacks: z.string(),
+//   solutionsAsPerSalesperson: z.string(),
+//   anyRemarks: z.string(),
+//   checkOutTime: z.string().or(z.date()),
+//   userId: z.number(),
+// });
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -96,7 +96,7 @@ export default function setupClientReportsPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'client-reports',
     table: clientReports,
-    schema: clientReportSchema,
+    schema: insertClientReportSchema,
     tableName: 'Client Report',
     autoFields: {
       createdAt: () => new Date(),

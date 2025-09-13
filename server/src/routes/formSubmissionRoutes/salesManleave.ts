@@ -3,23 +3,23 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { salesmanLeaveApplications } from '../../db/schema';
+import { salesmanLeaveApplications, insertSalesmanLeaveApplicationSchema } from '../../db/schema';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
 // Manual Zod schema EXACTLY matching the table schema
-const salesmanLeaveApplicationSchema = z.object({
-  userId: z.number().int().positive(),
-  leaveType: z.string().max(100),
-  startDate: z.string().or(z.date()),
-  endDate: z.string().or(z.date()),
-  reason: z.string().max(500),
-  status: z.string().max(50),
-  adminRemarks: z.string().max(500).optional().nullable().or(z.literal("")),
-}).transform((data) => ({
-  ...data,
-  adminRemarks: data.adminRemarks === "" ? null : data.adminRemarks,
-}));
+// const salesmanLeaveApplicationSchema = z.object({
+//   userId: z.number().int().positive(),
+//   leaveType: z.string().max(100),
+//   startDate: z.string().or(z.date()),
+//   endDate: z.string().or(z.date()),
+//   reason: z.string().max(500),
+//   status: z.string().max(50),
+//   adminRemarks: z.string().max(500).optional().nullable().or(z.literal("")),
+// }).transform((data) => ({
+//   ...data,
+//   adminRemarks: data.adminRemarks === "" ? null : data.adminRemarks,
+// }));
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -82,7 +82,7 @@ export default function setupSalesmanLeaveApplicationsPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'leave-applications',
     table: salesmanLeaveApplications,
-    schema: salesmanLeaveApplicationSchema,
+    schema: insertSalesmanLeaveApplicationSchema,
     tableName: 'Salesman Leave Application',
     autoFields: {
       createdAt: () => new Date(),

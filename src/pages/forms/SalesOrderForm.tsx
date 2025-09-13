@@ -1,8 +1,7 @@
-// src/pages/forms/SalesOrderForm.tsx
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, TouchableOpacity, Platform, Alert, StyleSheet } from 'react-native';
+import { ScrollView, View, TouchableOpacity, Platform, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Text, Button, TextInput, HelperText, useTheme } from 'react-native-paper';
+import { Text, Button, TextInput, HelperText, Modal, Portal, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useForm, Controller, Resolver } from 'react-hook-form';
@@ -12,30 +11,20 @@ import RNPickerSelect from 'react-native-picker-select';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 
-import { useAppStore, DEALER_TYPES, UNITS, fetchRegions, fetchAreas, BASE_URL } from '../../components/ReusableConstants';
+import { useAppStore, UNITS, BASE_URL } from '../../components/ReusableConstants';
 import AppHeader from '../../components/AppHeader';
 import Toast from 'react-native-toast-message';
 
-// --- Zod Schema (Updated) ---
+// --- Zod Schema (Updated to match DB) ---
 const SalesOrderSchema = z.object({
-  salesmanName: z.string().min(1, "Salesman name is required"),
-  salesmanRole: z.string().min(1, "Salesman role is required"),
-  dealerType: z.string().min(1, "Dealer type is required"),
-  // FIX: dealerName is now dynamic, so we just need its ID
   dealerId: z.string().min(1, "Dealer is required"),
-  dealerName: z.string().optional(),
-  // FIX: Dealer phone and address are removed from user input and made optional in the form
-  dealerPhone: z.string().optional(),
-  dealerAddress: z.string().optional(),
-  area: z.string().min(1, "Area is required"),
-  region: z.string().min(1, "Region is required"),
   quantity: z.coerce.number().positive("Quantity must be positive"),
   unit: z.string().min(1, "Unit is required"),
   orderTotal: z.coerce.number().positive("Order total must be positive"),
   advancePayment: z.coerce.number().min(0, "Advance cannot be negative"),
   pendingPayment: z.coerce.number().min(0),
   estimatedDelivery: z.date(),
-  remarks: z.string().optional(),
+  remarks: z.string().optional().nullable(),
 });
 
 type SalesOrderFormValues = z.infer<typeof SalesOrderSchema>;
@@ -57,58 +46,60 @@ export default function SalesOrderForm() {
   const { user } = useAppStore();
 
   const [datePickerVisible, setDatePickerVisible] = useState(false);
-  // FIX: Fetch dealers from API
   const [dealers, setDealers] = useState<Dealer[]>([]);
-  // FIX: Use separate state for selected dealer to populate fields
+  const [isDealersLoading, setIsDealersLoading] = useState(true);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | null>(null);
+  const [dealerModalVisible, setDealerModalVisible] = useState(false);
+  const [dealerSearchQuery, setDealerSearchQuery] = useState('');
 
   const { control, handleSubmit, setValue, watch, formState: { errors, isSubmitting, isValid } } = useForm<SalesOrderFormValues>({
     resolver: zodResolver(SalesOrderSchema) as unknown as Resolver<SalesOrderFormValues, any>,
     mode: 'onChange',
     defaultValues: {
-      salesmanName: [user?.firstName, user?.lastName].filter(Boolean).join(" "),
-      salesmanRole: user?.role ?? "",
-      dealerType: '',
       dealerId: '',
-      area: '',
-      region: '',
+      quantity: 0,
       unit: '',
+      orderTotal: 0,
+      advancePayment: 0,
+      pendingPayment: 0,
       estimatedDelivery: new Date(),
-      remarks: '',
+      remarks: null,
     },
   });
 
-  const [orderTotal, advancePayment] = watch(['orderTotal', 'advancePayment']);
+  const [orderTotal, advancePayment, dealerId] = watch(['orderTotal', 'advancePayment', 'dealerId']);
   const estimatedDelivery = watch('estimatedDelivery');
 
-  // FIX: Fetch all dealers on component mount
+  const filteredDealers = dealers.filter(d =>
+    d.name.toLowerCase().includes(dealerSearchQuery.toLowerCase())
+  );
+
+  // Fetch all dealers on component mount
   useEffect(() => {
     const fetchAllDealers = async () => {
       try {
+        setIsDealersLoading(true);
         const response = await fetch(`${BASE_URL}/api/dealers`);
         const result = await response.json();
         if (response.ok && result.success) {
           setDealers(result.data);
         } else {
-          console.error("Failed to fetch dealers:", result.error);
+          Alert.alert('Error', 'Failed to load dealers.');
         }
       } catch (err) {
-        console.error("Failed to fetch dealers:", err);
+        Alert.alert('Error', 'Failed to fetch dealers.');
+      } finally {
+        setIsDealersLoading(false);
       }
     };
     fetchAllDealers();
   }, []);
 
-  // Automatically populate dealer details when a dealer is selected
+  // Update selectedDealer and dependent fields when dealerId changes
   useEffect(() => {
-    if (selectedDealer) {
-      setValue('dealerType', selectedDealer.type, { shouldValidate: true });
-      setValue('area', selectedDealer.area, { shouldValidate: true });
-      setValue('region', selectedDealer.region, { shouldValidate: true });
-      setValue('dealerPhone', selectedDealer.phoneNo);
-      setValue('dealerAddress', selectedDealer.address);
-    }
-  }, [selectedDealer, setValue]);
+    const dealer = dealers.find(d => d.id === dealerId) || null;
+    setSelectedDealer(dealer);
+  }, [dealerId, dealers]);
 
   // Automatically calculate pending payment
   useEffect(() => {
@@ -130,24 +121,16 @@ export default function SalesOrderForm() {
 
   const submit = async (values: SalesOrderFormValues) => {
     try {
-      // The payload structure is updated for the new form fields
       const payload = {
-        salesmanName: values.salesmanName,
-        salesmanRole: values.salesmanRole,
-        dealerType: values.dealerType,
-        dealerName: selectedDealer?.name,
-        dealerPhone: selectedDealer?.phoneNo,
-        dealerAddress: selectedDealer?.address,
-        area: values.area,
-        region: values.region,
-        quantity: values.quantity,
+        salesmanId: user?.id,
+        dealerId: values.dealerId,
+        quantity: String(values.quantity),
         unit: values.unit,
-        orderTotal: values.orderTotal,
-        advancePayment: values.advancePayment,
-        pendingPayment: values.pendingPayment,
+        orderTotal: String(values.orderTotal),
+        advancePayment: String(values.advancePayment),
+        pendingPayment: String(values.pendingPayment),
         estimatedDelivery: format(values.estimatedDelivery, 'yyyy-MM-dd'),
-        remarks: values.remarks || null,
-        userId: user?.id ?? null,
+        remarks: values.remarks,
       };
 
       const response = await fetch(`${BASE_URL}/api/sales-orders`, {
@@ -160,6 +143,7 @@ export default function SalesOrderForm() {
       if (!response.ok) throw new Error(result.error || 'Failed to submit sales order');
 
       Toast.show({ type: 'success', text1: 'Order Submitted', text2: 'The sales order has been sent.' });
+      // @ts-ignore
       navigation.goBack();
     } catch (error: any) {
       Alert.alert('Submission Failed', error.message);
@@ -169,87 +153,103 @@ export default function SalesOrderForm() {
   return (
     <SafeAreaView style={[{ backgroundColor: theme.colors.background }, styles.container]} edges={['right', 'bottom', 'left']}>
       <AppHeader title="Create Sales Order" />
+      <Portal>
+        {/* Dealer Selection Modal */}
+        <Modal visible={dealerModalVisible} onDismiss={() => setDealerModalVisible(false)} contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}>
+          <Text variant="titleLarge" style={styles.modalTitle}>Select Dealer</Text>
+          <TextInput
+            label="Search"
+            value={dealerSearchQuery}
+            onChangeText={setDealerSearchQuery}
+            mode="outlined"
+            right={<TextInput.Icon icon="magnify" />}
+            style={styles.searchBar}
+          />
+          {isDealersLoading ? (
+            <ActivityIndicator style={styles.loadingIndicator} />
+          ) : (
+            <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              {filteredDealers.length > 0 ? (
+                filteredDealers.map(d => (
+                  <TouchableOpacity
+                    key={d.id}
+                    onPress={() => {
+                      setValue('dealerId', d.id, { shouldValidate: true });
+                      setDealerModalVisible(false);
+                      setDealerSearchQuery('');
+                    }}
+                    style={styles.dealerListItem}
+                  >
+                    <Text style={styles.dealerListItemText}>{d.name} - {d.address}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={styles.noResultsText}>No dealers found.</Text>
+              )}
+            </ScrollView>
+          )}
+          <Button mode="contained" onPress={() => setDealerModalVisible(false)} style={styles.doneButton}>Done</Button>
+        </Modal>
+      </Portal>
       {datePickerVisible && (<DateTimePicker value={estimatedDelivery || new Date()} mode="date" display="default" onChange={onDateChange} />)}
 
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <Text variant="headlineSmall" style={styles.title}>Sales Order Details</Text>
 
-        {/* Salesman Section */}
+        {/* Salesman Section (Display Only) */}
         <Text variant="titleMedium" style={styles.sectionHeader}>Salesman Details</Text>
         <View style={styles.row}>
-          <Controller name="salesmanName" control={control} render={({ field: { onChange, onBlur, value } }) => (
-            <View style={styles.inputFlex}>
-              <TextInput label="Salesman Name *" value={value} disabled />
-              {errors.salesmanName && <HelperText type="error">{errors.salesmanName.message}</HelperText>}
-            </View>
-          )} />
-          <Controller name="salesmanRole" control={control} render={({ field: { onChange, onBlur, value } }) => (
-            <View style={styles.inputFlex}>
-              <TextInput label="Role *" value={value} disabled />
-              {errors.salesmanRole && <HelperText type="error">{errors.salesmanRole.message}</HelperText>}
-            </View>
-          )} />
+          <View style={styles.inputFlex}>
+            <TextInput label="Salesman Name" value={[user?.firstName, user?.lastName].filter(Boolean).join(" ")} disabled />
+          </View>
+          <View style={styles.inputFlex}>
+            <TextInput label="Role" value={user?.role ?? ""} disabled />
+          </View>
         </View>
 
         {/* Dealer Section */}
         <Text variant="titleMedium" style={styles.sectionHeader}>Dealer Details</Text>
-        <Controller control={control} name="dealerId" render={({ field: { onChange, value } }) => (
+        <Controller control={control} name="dealerId" render={({ field: { value } }) => (
           <View style={styles.inputContainer}>
-            <View style={[styles.pickerWrapper, { borderColor: errors.dealerId ? theme.colors.error : theme.colors.outline }]}>
-              <RNPickerSelect 
-                onValueChange={(dealerId) => {
-                  onChange(dealerId);
-                  const dealer = dealers.find(d => d.id === dealerId) || null;
-                  setSelectedDealer(dealer);
-                }} 
-                value={value} 
-                items={dealers.map(d => ({ label: d.name, value: d.id }))} 
-                placeholder={{ label: "Select Dealer *", value: null }} 
-                style={{ inputIOS: styles.pickerInput, inputAndroid: styles.pickerInput, iconContainer: styles.pickerIcon, placeholder: styles.pickerPlaceholder, }} 
-                useNativeAndroidPickerStyle={false} 
-                Icon={() => <Icon name="chevron-down" size={24} color={theme.colors.onSurface} />} 
+            <TouchableOpacity onPress={() => setDealerModalVisible(true)} activeOpacity={0.7}>
+              <TextInput
+                label="Select Dealer *"
+                value={selectedDealer?.name || ''}
+                editable={false}
+                mode="outlined"
+                right={<TextInput.Icon icon="chevron-down" />}
+                error={!!errors.dealerId}
               />
-            </View>
+            </TouchableOpacity>
             {errors.dealerId && <HelperText type="error">{errors.dealerId.message}</HelperText>}
-          </View>
-        )} />
-        
-        {/* FIX: These fields are now read-only */}
-        <Controller name="dealerType" control={control} render={({ field: { value } }) => (
-          <View style={styles.inputContainer}>
-            <TextInput label="Dealer Type *" value={value} disabled />
-          </View>
-        )} />
-        <Controller name="dealerPhone" control={control} render={({ field: { value } }) => (
-          <View style={styles.inputContainer}>
-            <TextInput label="Dealer Phone No" value={value} disabled />
-          </View>
-        )} />
-        <Controller name="dealerAddress" control={control} render={({ field: { value } }) => (
-          <View style={styles.inputContainer}>
-            <TextInput label="Dealer Address" value={value} disabled multiline />
           </View>
         )} />
 
         <View style={styles.row}>
-          <Controller control={control} name="area" render={({ field: { value } }) => (
-            <View style={styles.inputFlex}>
-              <TextInput label="Area *" value={value} disabled />
-              {errors.area && <HelperText type="error">{errors.area.message}</HelperText>}
-            </View>
-          )} />
-          <Controller control={control} name="region" render={({ field: { value } }) => (
-            <View style={styles.inputFlex}>
-              <TextInput label="Region *" value={value} disabled />
-              {errors.region && <HelperText type="error">{errors.region.message}</HelperText>}
-            </View>
-          )} />
+          <View style={styles.inputFlex}>
+            <TextInput label="Dealer Type" value={selectedDealer?.type || ''} disabled />
+          </View>
+          <View style={styles.inputFlex}>
+            <TextInput label="Dealer Phone" value={selectedDealer?.phoneNo || ''} disabled />
+          </View>
+        </View>
+        <View style={styles.inputContainer}>
+          <TextInput label="Dealer Address" value={selectedDealer?.address || ''} disabled multiline />
+        </View>
+
+        <View style={styles.row}>
+          <View style={styles.inputFlex}>
+            <TextInput label="Area" value={selectedDealer?.area || ''} disabled />
+          </View>
+          <View style={styles.inputFlex}>
+            <TextInput label="Region" value={selectedDealer?.region || ''} disabled />
+          </View>
         </View>
 
         {/* Order Details Section */}
         <Text variant="titleMedium" style={styles.sectionHeader}>Order Details</Text>
         <View style={styles.row}>
-          <Controller name="quantity" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputFlex}><TextInput label="Quantity *" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} error={!!errors.quantity} keyboardType="numeric" />{errors.quantity && <HelperText type="error">{errors.quantity.message}</HelperText>}</View>)} />
+          <Controller name="quantity" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputFlex}><TextInput label="Quantity *" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text.replace(/[^0-9.]/g, '')) || 0)} onBlur={onBlur} error={!!errors.quantity} keyboardType="numeric" />{errors.quantity && <HelperText type="error">{errors.quantity.message}</HelperText>}</View>)} />
           <Controller control={control} name="unit" render={({ field: { onChange, value } }) => (
             <View style={styles.inputFlex}>
               <View style={[styles.pickerWrapper, { borderColor: errors.unit ? theme.colors.error : theme.colors.outline }]}>
@@ -260,8 +260,8 @@ export default function SalesOrderForm() {
           )} />
         </View>
         <View style={styles.row}>
-          <Controller name="orderTotal" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputFlex}><TextInput label="Order Total (₹) *" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} error={!!errors.orderTotal} keyboardType="numeric" />{errors.orderTotal && <HelperText type="error">{errors.orderTotal.message}</HelperText>}</View>)} />
-          <Controller name="advancePayment" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputFlex}><TextInput label="Advance (₹) *" value={String(value || '')} onChangeText={onChange} onBlur={onBlur} error={!!errors.advancePayment} keyboardType="numeric" />{errors.advancePayment && <HelperText type="error">{errors.advancePayment.message}</HelperText>}</View>)} />
+          <Controller name="orderTotal" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputFlex}><TextInput label="Order Total (₹) *" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text.replace(/[^0-9.]/g, '')) || 0)} onBlur={onBlur} error={!!errors.orderTotal} keyboardType="numeric" />{errors.orderTotal && <HelperText type="error">{errors.orderTotal.message}</HelperText>}</View>)} />
+          <Controller name="advancePayment" control={control} render={({ field: { onChange, onBlur, value } }) => (<View style={styles.inputFlex}><TextInput label="Advance (₹) *" value={String(value || '')} onChangeText={(text) => onChange(parseFloat(text.replace(/[^0-9.]/g, '')) || 0)} onBlur={onBlur} error={!!errors.advancePayment} keyboardType="numeric" />{errors.advancePayment && <HelperText type="error">{errors.advancePayment.message}</HelperText>}</View>)} />
           <Controller name="pendingPayment" control={control} render={({ field: { value } }) => (<View style={styles.inputFlex}><TextInput label="Pending (₹)" value={String(value || '')} disabled /></View>)} />
         </View>
 
@@ -334,5 +334,37 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 4,
     borderRadius: 8,
+  },
+  modalContainer: {
+    padding: 20,
+    margin: 20,
+    borderRadius: 8,
+  },
+  modalTitle: {
+    marginBottom: 8,
+  },
+  searchBar: {
+    marginBottom: 12,
+  },
+  loadingIndicator: {
+    paddingVertical: 20,
+  },
+  dealerListItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#6b7280',
+  },
+  dealerListItemText: {
+    fontSize: 16,
+    color: '#e5e7eb',
+  },
+  noResultsText: {
+    textAlign: 'center',
+    marginTop: 20,
+    color: '#9ca3af',
+  },
+  doneButton: {
+    marginTop: 16,
   },
 });

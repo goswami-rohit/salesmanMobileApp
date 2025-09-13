@@ -3,26 +3,26 @@
 
 import { Request, Response, Express } from 'express';
 import { db } from '../../db/db';
-import { salesOrders } from '../../db/schema';
+import { salesOrders, insertSalesOrderSchema } from '../../db/schema';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
 // Manual Zod schema EXACTLY matching the table schema - ACCEPTS NUMBERS OR STRINGS
-const salesOrderSchema = z.object({
-  salesmanId: z.number().int().positive().optional().nullable(),
-  dealerId: z.string().max(255).optional().nullable().or(z.literal("")),
-  quantity: z.union([z.string(), z.number()]).transform(val => String(val)),
-  unit: z.string().max(50).min(1, "Unit is required"),
-  orderTotal: z.union([z.string(), z.number()]).transform(val => String(val)),
-  advancePayment: z.union([z.string(), z.number()]).transform(val => String(val)),
-  pendingPayment: z.union([z.string(), z.number()]).transform(val => String(val)),
-  estimatedDelivery: z.string().or(z.date()),
-  remarks: z.string().max(500).optional().nullable().or(z.literal("")),
-}).transform((data) => ({
-  ...data,
-  dealerId: data.dealerId === "" ? null : data.dealerId,
-  remarks: data.remarks === "" ? null : data.remarks,
-}));
+// const salesOrderSchema = z.object({
+//   salesmanId: z.number().int().positive().optional().nullable(),
+//   dealerId: z.string().max(255).optional().nullable().or(z.literal("")),
+//   quantity: z.union([z.string(), z.number()]).transform(val => String(val)),
+//   unit: z.string().max(50).min(1, "Unit is required"),
+//   orderTotal: z.union([z.string(), z.number()]).transform(val => String(val)),
+//   advancePayment: z.union([z.string(), z.number()]).transform(val => String(val)),
+//   pendingPayment: z.union([z.string(), z.number()]).transform(val => String(val)),
+//   estimatedDelivery: z.string().or(z.date()),
+//   remarks: z.string().max(500).optional().nullable().or(z.literal("")),
+// }).transform((data) => ({
+//   ...data,
+//   dealerId: data.dealerId === "" ? null : data.dealerId,
+//   remarks: data.remarks === "" ? null : data.remarks,
+// }));
 
 function createAutoCRUD(app: Express, config: {
   endpoint: string,
@@ -91,7 +91,7 @@ export default function setupSalesOrdersPostRoutes(app: Express) {
   createAutoCRUD(app, {
     endpoint: 'sales-orders',
     table: salesOrders,
-    schema: salesOrderSchema,
+    schema: insertSalesOrderSchema,
     tableName: 'Sales Order',
     autoFields: {
       createdAt: () => new Date(),
